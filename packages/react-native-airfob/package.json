@@ -1,0 +1,45 @@
+{
+  "name": "react-native-airfob",
+  "version": "0.2.0",
+  "description": "Airfob (MOCA System) mobile access credentials for React Native and Mendix Native",
+  "main": "src/index.js",
+  "types": "index.d.ts",
+  "files": [
+    "src",
+    "android",
+    "ios",
+    "index.d.ts",
+    "react-native-airfob.podspec",
+    "README.md",
+    "!android/verify/.verify-cache"
+  ],
+  "keywords": [
+    "react-native",
+    "airfob",
+    "moca",
+    "suprema",
+    "access-control",
+    "ble",
+    "mendix"
+  ],
+  "license": "UNLICENSED",
+  "private": true,
+  "publishConfig": {
+    "registry": "https://REPLACE-WITH-YOUR-PRIVATE-REGISTRY"
+  },
+  "peerDependencies": {
+    "react-native": ">=0.71.0"
+  },
+  "devDependencies": {
+    "react-native": "0.73.0"
+  },
+  "react-native": {
+    "android": {
+      "sourceDir": "./android"
+    }
+  },
+  "scripts": {
+    "test": "node test/run.mjs",
+    "verify:android": "bash android/verify/compile-check.sh"
+  }
+}

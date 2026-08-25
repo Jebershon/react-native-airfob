@@ -1,0 +1,33 @@
+node_modules/
+*.log
+.DS_Store
+*.tgz
+
+# npm auth — never commit registry tokens
+.npmrc
+
+# Android build output. Patterns are unanchored (**/) because the package lives
+# at packages/react-native-airfob/, not at the repo root — a bare "android/build"
+# would silently match nothing.
+**/android/build/
+**/android/.gradle/
+*.iml
+local.properties
+
+# iOS build output
+**/ios/Pods/
+**/ios/build/
+*.xcworkspace
+!**/ios/*.xcodeproj/project.xcworkspace
+
+# JS build output
+lib/
+dist/
+
+# compile-check cache: ~650MB of Kotlin compiler and Maven jars
+.verify-cache/
+
+# Airfob SDK binaries are licensed by MOCA System — never commit them
+**/libs/*.aar
+**/Frameworks/*.framework
+**/*.xcframework

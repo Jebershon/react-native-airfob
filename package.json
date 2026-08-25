@@ -1,0 +1,18 @@
+{
+  "name": "airfob-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Airfob mobile access for Mendix Native — npm package, example app, Mendix module",
+  "workspaces": [
+    "packages/*",
+    "example"
+  ],
+  "scripts": {
+    "sync-versions": "node scripts/sync-mendix-versions.js",
+    "sync-versions:check": "node scripts/sync-mendix-versions.js --check",
+    "test": "npm --workspace react-native-airfob run test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
