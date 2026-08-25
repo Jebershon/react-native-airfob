@@ -209,7 +209,82 @@ Nanoflow **`ACT_Airfob_ExportLog`**:
 Ships in production, invisible until someone who knows about it needs it on a
 customer site.
 
-## 9. Export
+## 9. Support bundles (P4)
+
+Two ways a bundle reaches you. Both hand back an `AirfobSupportBundle`.
+
+**Manual** — `AirfobExportLog`, wired to the dev panel in step 8.
+
+**Automatic** — the package captures a bundle after a run of failed unlocks, so
+the evidence exists *before* the user gives up and calls the helpdesk. Off by
+default; turn it on with `AirfobBoot`'s `autoBundleAfterFailures` parameter.
+
+```
+ACT_Airfob_Boot
+  1. AirfobBoot("<site id>", "info", $currentUser/AirfobCorrelationId, 7, 3)
+```
+
+The five parameters are `siteId`, `logLevel`, `correlationId`, `retentionDays`,
+`autoBundleAfterFailures`.
+
+Poll for a captured bundle on page show:
+
+```
+ACT_Airfob_CollectBundle
+  1. AirfobTakePendingBundle()  ->  $Bundle
+  2. Decision  $Bundle/pending
+     false -> end          (the normal case — nothing was waiting)
+     true  -> create AirfobTicket, copy $Bundle/bundle into it, commit
+```
+
+`pending` exists because Mendix cannot return a null object. Always check it
+first.
+
+### Correlation IDs — do this now, not later
+
+Token issuance happens in your Mendix backend. The unlock happens on the device.
+**Without a shared id there is no way to join the two halves**, and it cannot be
+retrofitted — old logs simply do not have it.
+
+Generate one when `IVK_Airfob_IssueToken` runs, store it on the user, and pass it
+to `AirfobBoot`. Every subsequent log entry carries it as `cid`, and it appears
+on the bundle.
+
+### Retention is a decision, not a default
+
+Access logs record where a named person was and when. That is personal data under
+GDPR, and it now has a number attached in two places:
+
+| | Where | Default |
+|---|---|---|
+| On device | `AirfobBoot`'s `retentionDays` | **7 days** |
+| On your backend | your `AirfobTicket` entity | **you must choose** |
+
+Seven days is long enough to investigate a Monday complaint about a Friday
+failure, and short enough that the handset is not a standing archive of somebody's
+movements. Passing `0` keeps everything — only do that where you have a lawful
+basis.
+
+Add a scheduled event that deletes `AirfobTicket` records past your backend
+window. A bundle that is never deleted is a retention breach with extra steps.
+
+### Admin view
+
+A simple data grid over `AirfobTicket` is enough:
+
+| Column | From |
+|---|---|
+| When | `generatedAt` |
+| User | your association |
+| Correlation | `correlationId` |
+| Trigger | `manual` or `repeatedUnlockFailure` |
+| Failures | `failureStreak` |
+| Entries | `entryCount` — and `droppedOlderEntries` if non-zero |
+
+`droppedOlderEntries` matters: a non-zero value means the bundle was truncated
+and the earliest evidence is not in it.
+
+## 10. Export
 
 Right-click the module → **Export module package** → `Airfob.mpk`.
 

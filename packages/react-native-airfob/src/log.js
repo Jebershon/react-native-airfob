@@ -9,7 +9,7 @@
  * The on-device log is the primary debugging artefact for this package: BLE
  * access control fails silently, in a pocket, on a handset you do not have.
  */
-import { LEVEL_VALUE, LOG_LEVELS } from "./constants.js";
+import { DEFAULTS, LEVEL_VALUE, LOG_LEVELS } from "./constants.js";
 
 const RING_CAPACITY = 500;
 
@@ -17,13 +17,28 @@ export function createLog({ getNative }) {
   const ring = [];
   const listeners = new Set();
   let level = "info";
+  let retentionDays = DEFAULTS.RETENTION_DAYS;
+  let correlationId = null;
 
   const shouldWrite = entryLevel =>
     LEVEL_VALUE[entryLevel] <= LEVEL_VALUE[level] && level !== "off";
 
+  /** Entries older than the retention window are dropped, not merely hidden. */
+  const cutoff = () =>
+    retentionDays > 0
+      ? new Date(Date.now() - retentionDays * 86400000).toISOString()
+      : null;
+
+  const prune = () => {
+    const limit = cutoff();
+    if (!limit) return;
+    while (ring.length && ring[0].ts < limit) ring.shift();
+  };
+
   const push = entry => {
     ring.push(entry);
     if (ring.length > RING_CAPACITY) ring.shift();
+    prune();
     listeners.forEach(fn => {
       try {
         fn(entry);
@@ -50,6 +65,10 @@ export function createLog({ getNative }) {
         src: source,
         code,
         msg: message,
+        // Token issuance happens in your backend, the unlock happens on the
+        // device. Without a shared id there is no way to join the two halves
+        // when something goes wrong, and it cannot be retrofitted afterwards.
+        ...(correlationId ? { cid: correlationId } : {}),
         ...(data ? { data } : {})
       };
 
@@ -77,6 +96,35 @@ export function createLog({ getNative }) {
     },
 
     /**
+     * @param {number} days 0 keeps everything — only do that deliberately, and
+     *   only where you have a lawful basis to.
+     */
+    setRetentionDays(days) {
+      if (typeof days !== "number" || days < 0) {
+        throw new Error(`Retention must be a non-negative number of days, got ${days}`);
+      }
+      retentionDays = days;
+      const native = getNative();
+      if (native && native.logSetRetention) native.logSetRetention(days).catch(() => {});
+      prune();
+      return retentionDays;
+    },
+
+    getRetentionDays() {
+      return retentionDays;
+    },
+
+    /** Stamped onto every subsequent entry. Pass null to stop. */
+    setCorrelationId(id) {
+      correlationId = id || null;
+      return correlationId;
+    },
+
+    getCorrelationId() {
+      return correlationId;
+    },
+
+    /**
      * Newest last. Native entries win when both exist, because the native ring
      * survives an app restart and the JS one does not.
      */
@@ -94,6 +142,10 @@ export function createLog({ getNative }) {
       }
 
       let out = entries;
+      const limitTs = cutoff();
+      // Applied on read as well as on write: the native ring survives process
+      // death, so it can hand back entries that aged out while the app was gone.
+      if (limitTs) out = out.filter(e => e.ts >= limitTs);
       if (since) out = out.filter(e => e.ts >= since);
       if (minLevel) out = out.filter(e => LEVEL_VALUE[e.lvl] <= LEVEL_VALUE[minLevel]);
       if (limit) out = out.slice(-limit);
@@ -111,12 +163,22 @@ export function createLog({ getNative }) {
      * that explains it. This is what gets attached to a ticket.
      */
     async export(context = {}) {
-      const entries = await api.get();
+      const all = await api.get();
+
+      // Cap the payload. A bundle is uploaded over a phone connection and stored
+      // per ticket; an unbounded one is a bad citizen in both directions.
+      const entries = all.slice(-DEFAULTS.MAX_BUNDLE_ENTRIES);
+      const dropped = all.length - entries.length;
+
       const bundle = {
         generatedAt: new Date().toISOString(),
         package: "react-native-airfob",
+        correlationId,
+        retentionDays,
         ...context,
         entryCount: entries.length,
+        // Silent truncation reads as "this is everything". Say what was cut.
+        droppedOlderEntries: dropped,
         entries
       };
 

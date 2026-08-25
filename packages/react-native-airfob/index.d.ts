@@ -10,6 +10,12 @@ declare module "react-native-airfob" {
     apiKey?: string;
     logLevel?: LogLevel;
     rssiThreshold?: number;
+    /** Ties this device to the token your backend issued it. */
+    correlationId?: string;
+    /** Days of log kept. Default 7. A privacy control — 0 keeps everything. */
+    retentionDays?: number;
+    /** Capture a bundle after this many consecutive failed unlocks. 0 = off. */
+    autoBundleAfterFailures?: number;
   }
 
   export interface Card {
@@ -60,6 +66,8 @@ declare module "react-native-airfob" {
 
   export interface LogEntry {
     ts: string;
+    /** Present when a correlation id is set. */
+    cid?: string;
     lvl: Exclude<LogLevel, "off">;
     src: LogSource;
     code: string;
@@ -73,6 +81,11 @@ declare module "react-native-airfob" {
       generatedAt: string;
       package: string;
       entryCount: number;
+      correlationId: string | null;
+      retentionDays: number;
+      droppedOlderEntries: number;
+      trigger?: string;
+      failureStreak?: number;
       entries: LogEntry[];
       [key: string]: unknown;
     };
@@ -82,12 +95,15 @@ declare module "react-native-airfob" {
     | { name: "status"; status: Status }
     | { name: "readerDetected"; readerId: string; rssi: number }
     | { name: "unlockResult"; result: UnlockResult; readerId?: string; rssi?: number }
-    | { name: "error"; code: string; message: string };
+    | { name: "error"; code: string; message: string }
+    | { name: "supportBundleReady"; reason: string; failureStreak: number };
 
   export interface AirfobLog {
     get(options?: { since?: string; level?: LogLevel; limit?: number }): Promise<LogEntry[]>;
     setLevel(level: LogLevel): LogLevel;
     getLevel(): LogLevel;
+    setRetentionDays(days: number): number;
+    getRetentionDays(): number;
     clear(): Promise<void>;
     subscribe(handler: (entry: LogEntry) => void): () => void;
     write(level: Exclude<LogLevel, "off">, source: LogSource, code: string, message: string, data?: object): void;
@@ -99,6 +115,22 @@ declare module "react-native-airfob" {
     readonly isMock: boolean;
 
     boot(config?: BootConfig): Promise<{ sdkReady: boolean; mock: boolean; version: string }>;
+
+    /** Change settings without re-booting. */
+    configure(config?: BootConfig): {
+      logLevel: LogLevel;
+      retentionDays: number;
+      correlationId: string | null;
+      autoBundleAfterFailures: number;
+    };
+
+    setCorrelationId(id: string | null): string | null;
+
+    /** Collects an automatically captured bundle and clears it. */
+    takePendingBundle(): SupportBundle | null;
+    hasPendingBundle(): boolean;
+    /** Consecutive failed unlocks; any success resets it. */
+    getFailureStreak(): number;
     getStatus(): Promise<Status>;
 
     register(token: string): Promise<{ cards: Card[] }>;

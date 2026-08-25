@@ -74,8 +74,14 @@ export async function AirfobExportLog(contextJson) {
                 ok: false,
                 code: "E_BAD_PAYLOAD",
                 message: "contextJson is not valid JSON",
+                pending: false,
+                trigger: "",
+                correlationId: "",
+                retentionDays: 0,
+                failureStreak: 0,
                 path: "",
                 entryCount: 0,
+                droppedOlderEntries: 0,
                 bundle: ""
             });
         }
@@ -83,21 +89,34 @@ export async function AirfobExportLog(contextJson) {
 
     try {
         const exported = await Airfob.log.export(context);
+        const content = exported.content;
         return createAirfobObject("AirfobSupportBundle", {
             ok: true,
             code: "",
             message: "",
+            pending: false,
+            trigger: "manual",
+            correlationId: content.correlationId || "",
+            retentionDays: content.retentionDays || 0,
+            failureStreak: 0,
             path: exported.path || "",
-            entryCount: exported.content.entryCount,
-            bundle: JSON.stringify(exported.content)
+            entryCount: content.entryCount || 0,
+            droppedOlderEntries: content.droppedOlderEntries || 0,
+            bundle: JSON.stringify(content)
         });
     } catch (e) {
         return createAirfobObject("AirfobSupportBundle", {
             ok: false,
             code: e.code || "E_SDK",
             message: e.message || String(e),
+            pending: false,
+            trigger: "",
+            correlationId: "",
+            retentionDays: 0,
+            failureStreak: 0,
             path: "",
             entryCount: 0,
+            droppedOlderEntries: 0,
             bundle: ""
         });
     }

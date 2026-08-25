@@ -218,7 +218,8 @@ final class AirfobDiagnostics: NSObject, CBCentralManagerDelegate {
             "permissions": permissionsState(),
             "backgroundModes": modes.joined(separator: ", "),
             "lowPowerMode": ProcessInfo.processInfo.isLowPowerModeEnabled,
-            "logLevel": AirfobLog.shared.getLevel()
+            "logLevel": AirfobLog.shared.getLevel(),
+            "retentionDays": AirfobLog.shared.getRetention()
         ]
     }
 

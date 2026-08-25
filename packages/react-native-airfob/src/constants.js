@@ -31,7 +31,26 @@ export const EVENTS = {
   READER_DETECTED: "readerDetected",
   UNLOCK_RESULT: "unlockResult",
   LOG: "log",
-  ERROR: "error"
+  ERROR: "error",
+  /** A support bundle was captured automatically after repeated failures. */
+  SUPPORT_BUNDLE: "supportBundleReady"
+};
+
+/**
+ * Defaults for the P4 support pipeline.
+ *
+ * RETENTION_DAYS is a privacy decision, not a technical one. Access logs record
+ * where a named person was and when, which is personal data under GDPR. Seven
+ * days is long enough to investigate a complaint that arrives on Monday about
+ * something that happened on Friday, and short enough that the device is not a
+ * standing archive of somebody's movements. Override it deliberately.
+ */
+export const DEFAULTS = {
+  RETENTION_DAYS: 7,
+  /** 0 disables automatic capture. */
+  AUTO_BUNDLE_AFTER_FAILURES: 0,
+  /** Entries per bundle. Beyond this the oldest are dropped, with a marker. */
+  MAX_BUNDLE_ENTRIES: 500
 };
 
 /** Result of an unlock attempt. */

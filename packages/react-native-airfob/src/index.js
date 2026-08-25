@@ -14,13 +14,104 @@
  * torn down — which is the normal state when a user taps their phone on a reader
  * without opening the app.
  */
-import { CHECK, ERRORS, EVENTS, LOG_LEVELS, REMEDIATION, UNLOCK_RESULTS } from "./constants.js";
+import {
+  CHECK,
+  DEFAULTS,
+  ERRORS,
+  EVENTS,
+  LOG_LEVELS,
+  REMEDIATION,
+  UNLOCK_RESULTS
+} from "./constants.js";
 import { impl, isMock, log } from "./nativeModule.js";
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 
 let bootConfig = null;
 let bootPromise = null;
+
+/* ------------------------------------------------- automatic support capture */
+
+let failureStreak = 0;
+let autoBundleAfter = DEFAULTS.AUTO_BUNDLE_AFTER_FAILURES;
+let pendingBundle = null;
+
+/**
+ * Captures a bundle once a run of unlocks has failed, so the evidence exists
+ * before the user gives up and calls the helpdesk. Held on the device rather
+ * than uploaded: this package never talks to your backend.
+ */
+async function captureBundle(reason) {
+  if (pendingBundle) return; // one is already waiting to be collected
+  try {
+    const bundle = await log.export({
+      version: VERSION,
+      mock: isMock,
+      siteId: bootConfig?.siteId ?? null,
+      trigger: reason,
+      failureStreak
+    });
+    pendingBundle = bundle;
+    log.write("warn", "bridge", "AUTO_BUNDLE", `Captured after ${failureStreak} failures`);
+    notify({ name: EVENTS.SUPPORT_BUNDLE, reason, failureStreak });
+  } catch (e) {
+    log.write("error", "bridge", "AUTO_BUNDLE_FAIL", e.message || String(e));
+  }
+}
+
+function recordUnlockOutcome(opened) {
+  if (opened) {
+    failureStreak = 0;
+    return;
+  }
+  failureStreak += 1;
+  if (autoBundleAfter > 0 && failureStreak >= autoBundleAfter) {
+    captureBundle("repeatedUnlockFailure");
+  }
+}
+
+/* ------------------------------------------------------------------ events -- */
+
+const listeners = new Set();
+
+function notify(event) {
+  listeners.forEach(fn => {
+    try {
+      fn(event);
+    } catch (e) {
+      log.write("error", "bridge", "E_LISTENER", e.message || String(e));
+    }
+  });
+}
+
+/**
+ * A JS-initiated unlock produces two signals for the same attempt: the promise
+ * outcome, and a native unlockResult event. Counting both doubles the streak and
+ * fires auto-capture at half the configured threshold, so the event is ignored
+ * for a moment after unlock() is called.
+ *
+ * Tap-and-go events arrive with no JS on the call stack and are always counted —
+ * which is the whole point, since that is where real failures happen.
+ */
+let suppressEventCountingUntil = 0;
+const UNLOCK_EVENT_WINDOW_MS = 1000;
+
+impl.subscribe(event => {
+  if (event?.name === EVENTS.UNLOCK_RESULT && Date.now() >= suppressEventCountingUntil) {
+    recordUnlockOutcome(event.result === "opened");
+  }
+  notify(event);
+});
+
+/** Applied on every boot() call, not just the first, and by configure(). */
+function applyConfig(config) {
+  if (config.logLevel) log.setLevel(config.logLevel);
+  if (config.correlationId !== undefined) log.setCorrelationId(config.correlationId);
+  if (typeof config.retentionDays === "number") log.setRetentionDays(config.retentionDays);
+  if (typeof config.autoBundleAfterFailures === "number") {
+    autoBundleAfter = config.autoBundleAfterFailures;
+  }
+}
 
 const Airfob = {
   version: VERSION,
@@ -35,10 +126,12 @@ const Airfob = {
    * @param {{siteId?: string, apiKey?: string, logLevel?: string, rssiThreshold?: number}} config
    */
   async boot(config = {}) {
-    if (bootPromise) return bootPromise;
+    // Settings apply on every call. Only the SDK start is idempotent — silently
+    // dropping config because boot already ran would be a trap.
+    bootConfig = { ...(bootConfig || {}), ...config };
+    applyConfig(config);
 
-    bootConfig = config;
-    if (config.logLevel) log.setLevel(config.logLevel);
+    if (bootPromise) return bootPromise;
 
     bootPromise = impl
       .boot(config)
@@ -52,6 +145,22 @@ const Airfob = {
       });
 
     return bootPromise;
+  },
+
+  /**
+   * Change settings without re-booting. Same fields as boot().
+   * Useful for setting a correlation id at sign-in, or turning on automatic
+   * support capture for one user while diagnosing a problem.
+   */
+  configure(config = {}) {
+    bootConfig = { ...(bootConfig || {}), ...config };
+    applyConfig(config);
+    return {
+      logLevel: log.getLevel(),
+      retentionDays: log.getRetentionDays(),
+      correlationId: log.getCorrelationId(),
+      autoBundleAfterFailures: autoBundleAfter
+    };
   },
 
   /** Current state. Cheap — safe to call on every page show. */
@@ -88,7 +197,15 @@ const Airfob = {
    * gates, and taps that did not land.
    */
   async unlock(cardId) {
-    return impl.unlock({ cardId });
+    suppressEventCountingUntil = Date.now() + UNLOCK_EVENT_WINDOW_MS;
+    try {
+      const outcome = await impl.unlock({ cardId });
+      recordUnlockOutcome(outcome?.result === "opened");
+      return outcome;
+    } catch (e) {
+      recordUnlockOutcome(false);
+      throw e;
+    }
   },
 
   /* --------------------------------------------------- readiness / debug --- */
@@ -135,10 +252,43 @@ const Airfob = {
     return impl.resetRssi();
   },
 
+  /**
+   * Ties a device to the token your backend issued it. Without one there is no
+   * way to join a failed unlock to the enrolment that produced the credential.
+   * Set it at boot, or here when the user signs in.
+   */
+  setCorrelationId(id) {
+    return log.setCorrelationId(id);
+  },
+
+  /**
+   * Collects a bundle captured automatically after repeated failures, and clears
+   * it. Returns null when there is nothing waiting.
+   *
+   * Polled rather than pushed because a Mendix Action parameter takes no
+   * arguments, so a nanoflow callback cannot receive the bundle.
+   */
+  takePendingBundle() {
+    const bundle = pendingBundle;
+    pendingBundle = null;
+    return bundle;
+  },
+
+  hasPendingBundle() {
+    return pendingBundle !== null;
+  },
+
+  /** Consecutive failed unlocks. Reset by any success. */
+  getFailureStreak() {
+    return failureStreak;
+  },
+
   log: {
     get: options => log.get(options),
     setLevel: level => log.setLevel(level),
     getLevel: () => log.getLevel(),
+    setRetentionDays: days => log.setRetentionDays(days),
+    getRetentionDays: () => log.getRetentionDays(),
     clear: () => log.clear(),
     subscribe: fn => log.subscribe(fn),
     write: (level, source, code, message, data) => log.write(level, source, code, message, data),
@@ -171,7 +321,8 @@ const Airfob = {
    * @returns {() => void} unsubscribe
    */
   on(handler) {
-    return impl.subscribe(handler);
+    listeners.add(handler);
+    return () => listeners.delete(handler);
   },
 
   /* ----------------------------------------------------------- constants -- */
@@ -179,10 +330,11 @@ const Airfob = {
   EVENTS,
   ERRORS,
   CHECK,
+  DEFAULTS,
   LOG_LEVELS,
   REMEDIATION,
   UNLOCK_RESULTS
 };
 
 export default Airfob;
-export { CHECK, ERRORS, EVENTS, LOG_LEVELS, REMEDIATION, UNLOCK_RESULTS };
+export { CHECK, DEFAULTS, ERRORS, EVENTS, LOG_LEVELS, REMEDIATION, UNLOCK_RESULTS };

@@ -42,6 +42,13 @@ object AirfobLog {
     }
 
     @Volatile private var level: String = "info"
+
+    /**
+     * Days of history kept. Access logs record where a named person was and when,
+     * which is personal data — this is a privacy control, not a disk-space one.
+     * 0 keeps everything and should only be set deliberately.
+     */
+    @Volatile private var retentionDays: Double = 7.0
     @Volatile private var logFile: File? = null
 
     /** Called once from [AirfobInitializer] at process start. */
@@ -51,8 +58,10 @@ object AirfobLog {
                 logFile = File(context.filesDir, FILE_NAME)
             }
         }
-        // Replay whatever survived the last run so the ring is not empty on boot.
+        // Replay whatever survived the last run so the ring is not empty on boot,
+        // then drop anything that aged out while the process was dead.
         loadTail()
+        prune()
     }
 
     fun setLevel(next: String) {
@@ -60,6 +69,29 @@ object AirfobLog {
     }
 
     fun getLevel(): String = level
+
+    fun setRetention(days: Double) {
+        retentionDays = if (days < 0) 0.0 else days
+        prune()
+    }
+
+    fun getRetention(): Double = retentionDays
+
+    private fun cutoffIso(): String? {
+        if (retentionDays <= 0.0) return null
+        val window = (retentionDays * 86_400_000.0).toLong()
+        return iso.format(Date(System.currentTimeMillis() - window))
+    }
+
+    /** Drops aged entries from the ring. Cheap: the ring is time-ordered. */
+    private fun prune() {
+        val limit = cutoffIso() ?: return
+        synchronized(lock) {
+            while (ring.isNotEmpty() && ring.peekFirst().optString("ts") < limit) {
+                ring.pollFirst()
+            }
+        }
+    }
 
     fun write(
         entryLevel: String,
@@ -87,6 +119,7 @@ object AirfobLog {
         }
 
         appendToFile(entry)
+        prune()
 
         when (entryLevel) {
             "error" -> Log.e(TAG, "[$source/$code] $message")
@@ -103,12 +136,16 @@ object AirfobLog {
             ring.addLast(entry)
         }
         appendToFile(entry)
+        prune()
     }
 
     /** Newest last. [since] is an ISO timestamp. */
-    fun entries(since: String? = null): List<JSONObject> = synchronized(lock) {
-        val all = ring.toList()
-        if (since == null) all else all.filter { it.optString("ts") >= since }
+    fun entries(since: String? = null): List<JSONObject> {
+        prune()
+        return synchronized(lock) {
+            val all = ring.toList()
+            if (since == null) all else all.filter { it.optString("ts") >= since }
+        }
     }
 
     fun clear() {

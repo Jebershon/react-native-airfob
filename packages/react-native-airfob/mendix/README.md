@@ -36,17 +36,18 @@ running — so there is nothing to render on the hot path. JavaScript actions ke
 the UI in Atlas where your Mendix developers can restyle it without touching
 React.
 
-## The seven actions
+## The eight actions
 
 | Action | Parameters | Return type |
 |---|---|---|
-| `AirfobBoot` | `siteId` String, `logLevel` String | Boolean |
+| `AirfobBoot` | `siteId`, `logLevel`, `correlationId` String; `retentionDays`, `autoBundleAfterFailures` Integer | Boolean |
 | `AirfobGetStatus` | – | Object → `AirfobStatus` |
 | `AirfobGetDiagnostics` | – | List → `AirfobCheck` |
 | `AirfobRegister` | `token` String | Object → `AirfobResult` |
 | `AirfobUnlock` | `cardId` String | Object → `AirfobResult` |
 | `AirfobRemediate` | `actionId` String | Boolean |
 | `AirfobExportLog` | `contextJson` String | Object → `AirfobSupportBundle` |
+| `AirfobTakePendingBundle` | – | Object → `AirfobSupportBundle` |
 
 Studio Pro cannot infer return types — set them by hand. Each action's header
 comment states which.
@@ -56,7 +57,7 @@ comment states which.
 
 ## Domain model
 
-Four non-persistable entities, 31 attributes. `npx react-native-airfob spec`
+Four non-persistable entities, 37 attributes. `npx react-native-airfob spec`
 prints them; `--json` gives a machine-readable form to diff against what you
 built.
 

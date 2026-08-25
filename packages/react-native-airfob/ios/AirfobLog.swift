@@ -32,6 +32,11 @@ public final class AirfobLog: NSObject {
     private var ring: [[String: Any]] = []
     private var level = "info"
 
+    /// Days of history kept. Access logs record where a named person was and when,
+    /// which is personal data — this is a privacy control, not a disk-space one.
+    /// 0 keeps everything and should only be set deliberately.
+    private var retentionDays: Double = 7.0
+
     private lazy var formatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -49,7 +54,11 @@ public final class AirfobLog: NSObject {
     /// Called once at launch from AirfobCore. Replays whatever survived the last
     /// run so the ring is not empty when the app comes back up.
     @objc public func attach() {
-        queue.async { self.loadTail() }
+        queue.async {
+            self.loadTail()
+            // Drop anything that aged out while the process was dead.
+            self.pruneLocked()
+        }
     }
 
     @objc public func setLevel(_ next: String) {
@@ -59,6 +68,26 @@ public final class AirfobLog: NSObject {
 
     @objc public func getLevel() -> String {
         queue.sync { level }
+    }
+
+    @objc public func setRetention(_ days: Double) {
+        queue.async {
+            self.retentionDays = days < 0 ? 0 : days
+            self.pruneLocked()
+        }
+    }
+
+    @objc public func getRetention() -> Double {
+        queue.sync { retentionDays }
+    }
+
+    /// Caller must already be running on the serial queue.
+    private func pruneLocked() {
+        guard retentionDays > 0 else { return }
+        let cutoff = formatter.string(from: Date(timeIntervalSinceNow: -retentionDays * 86_400))
+        while let first = ring.first, (first["ts"] as? String ?? "") < cutoff {
+            ring.removeFirst()
+        }
     }
 
     public func write(
@@ -98,6 +127,7 @@ public final class AirfobLog: NSObject {
     /// Newest last. `since` is an ISO timestamp.
     @objc public func entries(since: String?) -> [[String: Any]] {
         queue.sync {
+            pruneLocked()
             guard let since = since else { return ring }
             return ring.filter { ($0["ts"] as? String ?? "") >= since }
         }
@@ -137,6 +167,7 @@ public final class AirfobLog: NSObject {
                 self.ring.removeFirst(self.ring.count - AirfobLog.ringCapacity)
             }
             self.appendToFile(entry)
+            self.pruneLocked()
         }
     }
 

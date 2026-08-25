@@ -190,7 +190,8 @@ object AirfobDiagnostics {
             "requiredPermissions" to requiredPermissions().joinToString(),
             "missingPermissions" to missingPermissions(context).joinToString().ifEmpty { "none" },
             "batteryExempt" to (power?.isIgnoringBatteryOptimizations(context.packageName) ?: false),
-            "logLevel" to AirfobLog.getLevel()
+            "logLevel" to AirfobLog.getLevel(),
+            "retentionDays" to AirfobLog.getRetention()
         )
     }
 }

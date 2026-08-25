@@ -199,6 +199,12 @@ class AirfobModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun logSetRetention(days: Double, promise: Promise) = guard(promise) {
+        AirfobLog.setRetention(days)
+        Arguments.createMap().apply { putDouble("retentionDays", AirfobLog.getRetention()) }
+    }
+
+    @ReactMethod
     fun logGet(options: ReadableMap, promise: Promise) = guard(promise) {
         val entries = AirfobLog.entries(options.getStringOrNull("since"))
         val array = Arguments.createArray()

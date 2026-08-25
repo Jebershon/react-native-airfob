@@ -164,6 +164,14 @@ final class Airfob: RCTEventEmitter {
         resolve(["level": AirfobLog.shared.getLevel()])
     }
 
+    @objc(logSetRetention:resolver:rejecter:)
+    func logSetRetention(_ days: NSNumber,
+                         resolver resolve: @escaping RCTPromiseResolveBlock,
+                         rejecter reject: @escaping RCTPromiseRejectBlock) {
+        AirfobLog.shared.setRetention(days.doubleValue)
+        resolve(["retentionDays": AirfobLog.shared.getRetention()])
+    }
+
     @objc(logGet:resolver:rejecter:)
     func logGet(_ options: [String: Any],
                 resolver resolve: @escaping RCTPromiseResolveBlock,

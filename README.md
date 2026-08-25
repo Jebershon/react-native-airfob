@@ -3,7 +3,7 @@
 Airfob (MOCA System) mobile access credentials for React Native and Mendix
 Native, packaged so more than one project can use them.
 
-**Status: P3b spec complete** (`react-native-airfob@0.4.0`). The whole chain runs on a
+**Status: P4 complete** (`react-native-airfob@0.5.0`). The whole chain runs on a
 mock SDK — no Airfob licence, no binaries, no dealer relationship. When the real
 SDK arrives, one class is swapped and nothing above it changes.
 
@@ -72,7 +72,7 @@ npm test
 ```
 
 Zero dependencies — it copies the sources into a throwaway sandbox with a stub
-`react-native` and runs against the mock path. 49 checks across two suites. The first covers the fallback
+`react-native` and runs against the mock path. 60 checks across two suites. The first covers the fallback
 behaviour, the error codes, event emission, the bounded ring buffer, scenario
 forcing, bundle export, and the remediation contract — including the rule that a
 failing check must offer either an action or a remedy, never a dead end. The
@@ -201,7 +201,7 @@ native code, so that is the normal state for a Mendix developer building pages.
 | **P2** ✅ | remediation actions, diagnostics screen, dev panel, raw state | — |
 | **P3a** ✅ | 7 Mendix JS actions, sidecars, install CLI | — |
 | **P3b** ◐ | domain-model generator + build sheet done; the .mpr work itself | needs Studio Pro |
-| P4 | support-bundle upload, backend entity, admin view | — |
+| **P4** ✅ | correlation ids, log retention, automatic support capture | — |
 | P5 | `RealAirfobSdk` (Android, then iOS) | **SDK licence** |
 | P6 | telemetry: success rate, time-to-unlock, per-device model | P5 |
 
@@ -232,5 +232,6 @@ What the public changelog already tells us to expect:
 1. **Private registry** — Azure Artifacts, GitHub Packages, or Verdaccio? The
    licensed binaries cannot go on public npm. `publishConfig.registry` in the
    package is a placeholder until this is settled.
-2. **Log retention** — how long on device, how long server-side? Access logs are
-   personal data; GDPR applies. Pick a number before P4 ships.
+2. ~~**Log retention**~~ — **decided in P4.** Seven days on device by default,
+   configurable via `AirfobBoot`. Your backend window is still yours to choose;
+   see [STUDIO-PRO.md](packages/react-native-airfob/mendix/STUDIO-PRO.md) step 9.

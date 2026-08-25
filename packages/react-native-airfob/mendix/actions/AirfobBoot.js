@@ -27,20 +27,35 @@ const AIRFOB_MODULE = "Airfob";
  * is what makes tap-and-go work with the app closed. This is a safety net.
  *
  * Studio Pro
- *   siteId    String   (optional)
- *   logLevel  String   (optional) off | error | warn | info | debug
- *   returns   Boolean
+ *   siteId                   String   (optional)
+ *   logLevel                 String   (optional) off | error | warn | info | debug
+ *   correlationId            String   (optional) ties this device to the token
+ *                                     your backend issued — without it a failed
+ *                                     unlock cannot be joined to its enrolment
+ *   retentionDays            Integer  (optional) days of log kept, default 7.
+ *                                     A privacy control: access logs record where
+ *                                     a named person was and when. 0 keeps all.
+ *   autoBundleAfterFailures  Integer  (optional) capture a support bundle after
+ *                                     this many consecutive failed unlocks.
+ *                                     0 (default) disables it.
+ *   returns                  Boolean
  *
  * @param {string} siteId
  * @param {string} logLevel
+ * @param {string} correlationId
+ * @param {Big} retentionDays
+ * @param {Big} autoBundleAfterFailures
  * @returns {Promise.<boolean>}
  */
-export async function AirfobBoot(siteId, logLevel) {
+export async function AirfobBoot(siteId, logLevel, correlationId, retentionDays, autoBundleAfterFailures) {
     // BEGIN USER CODE
     try {
         await Airfob.boot({
             siteId: siteId || undefined,
-            logLevel: logLevel || undefined
+            logLevel: logLevel || undefined,
+            correlationId: correlationId || undefined,
+            retentionDays: retentionDays ? Number(retentionDays) : undefined,
+            autoBundleAfterFailures: autoBundleAfterFailures ? Number(autoBundleAfterFailures) : undefined
         });
         return true;
     } catch (e) {

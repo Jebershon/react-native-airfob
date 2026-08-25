@@ -199,8 +199,136 @@ await check("REMEDIATION ids are exported and unique", () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
-await check("version reports 0.4.0", () => {
-  assert.equal(Airfob.version, "0.4.0");
+await check("version reports 0.5.0", () => {
+  assert.equal(Airfob.version, "0.5.0");
+});
+
+/* ------------------------------------------------------------------- P4 --- */
+
+await check("correlation id is stamped onto entries", async () => {
+  await Airfob.log.clear();
+  Airfob.setCorrelationId("enrol-7f3a");
+  Airfob.log.write("info", "sdk", "X", "with cid");
+  const entries = await Airfob.log.get();
+  assert.equal(entries.at(-1).cid, "enrol-7f3a");
+});
+
+await check("clearing the correlation id stops stamping", async () => {
+  Airfob.setCorrelationId(null);
+  Airfob.log.write("info", "sdk", "X", "no cid");
+  const entries = await Airfob.log.get();
+  assert.ok(!("cid" in entries.at(-1)));
+});
+
+await check("retention drops entries past the window", async () => {
+  await Airfob.log.clear();
+  Airfob.log.setRetentionDays(50 / 86400000); // 50ms
+  Airfob.log.write("info", "sdk", "OLD", "should age out");
+  assert.equal((await Airfob.log.get()).length, 1);
+
+  await new Promise(r => setTimeout(r, 120));
+  assert.equal((await Airfob.log.get()).length, 0, "entry outlived its retention window");
+  Airfob.log.setRetentionDays(7);
+});
+
+await check("retention of 0 keeps everything", async () => {
+  await Airfob.log.clear();
+  Airfob.log.setRetentionDays(0);
+  Airfob.log.write("info", "sdk", "KEEP", "forever");
+  await new Promise(r => setTimeout(r, 20));
+  assert.equal((await Airfob.log.get()).length, 1);
+  Airfob.log.setRetentionDays(7);
+});
+
+await check("retention rejects a negative window", () => {
+  assert.throws(() => Airfob.log.setRetentionDays(-1), /non-negative/);
+  assert.equal(Airfob.log.getRetentionDays(), 7);
+});
+
+await check("bundle carries the privacy and truncation metadata", async () => {
+  Airfob.setCorrelationId("enrol-7f3a");
+  const bundle = await Airfob.log.export();
+  assert.equal(bundle.content.correlationId, "enrol-7f3a");
+  assert.equal(bundle.content.retentionDays, 7);
+  // Silent truncation would read as "this is everything".
+  assert.equal(typeof bundle.content.droppedOlderEntries, "number");
+  Airfob.setCorrelationId(null);
+});
+
+/**
+ * The streak is process-wide and earlier tests leave failures on it, so each of
+ * these starts by unlocking successfully to establish a zero baseline. That is
+ * also the only reset the API offers, by design — a working door is what proves
+ * the problem is over.
+ */
+async function resetStreak() {
+  await Airfob.setScenario("happy");
+  await Airfob.register("tok-baseline");
+  await Airfob.unlock();
+  assert.equal(Airfob.getFailureStreak(), 0, "baseline was not clean");
+}
+
+await check("failure streak counts up and resets on success", async () => {
+  await resetStreak();
+
+  await Airfob.setScenario("noReader");
+  await assert.rejects(() => Airfob.unlock());
+  await assert.rejects(() => Airfob.unlock());
+  // Exactly 2, not 4: a JS unlock emits an event AND rejects for the same
+  // attempt, and only one of those may count.
+  assert.equal(Airfob.getFailureStreak(), 2);
+
+  await Airfob.setScenario("happy");
+  await Airfob.unlock();
+  assert.equal(Airfob.getFailureStreak(), 0);
+});
+
+await check("auto-capture is off by default", async () => {
+  Airfob.configure({ autoBundleAfterFailures: 0 });
+  Airfob.takePendingBundle();
+  await resetStreak();
+
+  await Airfob.setScenario("noReader");
+  for (let i = 0; i < 3; i += 1) await assert.rejects(() => Airfob.unlock());
+  assert.equal(Airfob.hasPendingBundle(), false);
+});
+
+await check("configure applies settings without re-booting", () => {
+  const applied = Airfob.configure({ autoBundleAfterFailures: 2, retentionDays: 3 });
+  assert.equal(applied.autoBundleAfterFailures, 2);
+  assert.equal(applied.retentionDays, 3);
+  Airfob.log.setRetentionDays(7);
+});
+
+await check("auto-capture fires after the configured run of failures", async () => {
+  const events = [];
+  const off = Airfob.on(e => events.push(e));
+
+  Airfob.takePendingBundle();       // clear anything left over
+  await resetStreak();
+  Airfob.configure({ autoBundleAfterFailures: 2 });
+
+  await Airfob.setScenario("noReader");
+  await assert.rejects(() => Airfob.unlock());
+  assert.equal(Airfob.hasPendingBundle(), false, "captured too early");
+
+  await assert.rejects(() => Airfob.unlock());
+  await new Promise(r => setTimeout(r, 50));
+
+  assert.equal(Airfob.hasPendingBundle(), true, "no bundle after the threshold");
+  assert.ok(events.some(e => e.name === Airfob.EVENTS.SUPPORT_BUNDLE), "no supportBundleReady event");
+
+  off();
+  await Airfob.setScenario("happy");
+});
+
+await check("takePendingBundle returns it once, then null", async () => {
+  const first = Airfob.takePendingBundle();
+  assert.ok(first, "expected a pending bundle");
+  assert.equal(first.content.trigger, "repeatedUnlockFailure");
+  assert.ok(first.content.failureStreak >= 2);
+  assert.equal(Airfob.takePendingBundle(), null);
+  assert.equal(Airfob.hasPendingBundle(), false);
 });
 
 console.log(`\n${pass} checks passed`);

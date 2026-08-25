@@ -2,7 +2,13 @@
   "ok": true,
   "code": "",
   "message": "",
+  "pending": true,
+  "trigger": "repeatedUnlockFailure",
+  "correlationId": "enrol-7f3a",
+  "retentionDays": 7,
+  "failureStreak": 3,
   "path": "/data/user/0/com.example/cache/airfob-support-1756123456.json",
   "entryCount": 42,
+  "droppedOlderEntries": 0,
   "bundle": "{\"generatedAt\":\"2026-08-25T09:14:02Z\",\"entries\":[]}"
 }
