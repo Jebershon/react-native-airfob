@@ -17,7 +17,14 @@ Pod::Spec.new do |s|
 
   s.dependency "React-Core"
 
-  # P5: the Airfob SDK is distributed privately by MOCA System. Either vendor the
-  # framework here or add their private spec repo to the app's Podfile.
-  # s.vendored_frameworks = "ios/Frameworks/AirfobSDK.xcframework"
+  # The licensed Airfob framework is not in this repository and never will be.
+  # Drop an .xcframework into ios/Frameworks/ and it is picked up automatically,
+  # along with the AIRFOB_SDK compilation condition that switches RealAirfobSdk
+  # on. Nothing to uncomment, and no licence means no source edit either.
+  airfob_frameworks = Dir.glob(File.join(__dir__, "ios", "Frameworks", "*.xcframework"))
+
+  unless airfob_frameworks.empty?
+    s.vendored_frameworks = airfob_frameworks.map { |f| "ios/Frameworks/#{File.basename(f)}" }
+    s.pod_target_xcconfig = { "SWIFT_ACTIVE_COMPILATION_CONDITIONS" => "AIRFOB_SDK" }
+  end
 end

@@ -84,6 +84,24 @@ STUB_SOURCES=()
 while IFS= read -r f; do STUB_SOURCES+=("$(winpath "$f")"); done < <(find "$HERE/stubs" -name '*.java')
 javac -nowarn -d "$(winpath "$CACHE/stub-classes")" "${STUB_SOURCES[@]}"
 
+# Mirror build.gradle: the withSdk source set — which holds RealAirfobSdk and is
+# the only code allowed to import MOCA classes — joins the compilation only when
+# a licensed AAR is present. Without one, this checks exactly what ships.
+WITH_SDK_DIR="$HERE/../src/withSdk/java/com/airfob"
+SDK_AAR="$(find "$HERE/../libs" -name '*.aar' 2>/dev/null | head -1)"
+
+if [ -n "$SDK_AAR" ] && [ -d "$WITH_SDK_DIR" ]; then
+  echo "==> SDK found: $(basename "$SDK_AAR") — including withSdk"
+  rm -rf "$CACHE/sdk" && mkdir -p "$CACHE/sdk"
+  (cd "$CACHE/sdk" && unzip -q -o "$SDK_AAR")
+  SDK_JAR="$CACHE/sdk/classes.jar"
+  EXTRA_SOURCES="$(winpath "$WITH_SDK_DIR")"
+else
+  echo "==> no SDK in libs/ — checking the shipping path only (MockAirfobSdk)"
+  SDK_JAR=""
+  EXTRA_SOURCES=""
+fi
+
 echo "==> kotlin"
 # kotlinc.bat splits arguments on ';' under Windows batch, so the classpath has
 # to arrive via an argfile rather than on the command line.
@@ -91,12 +109,16 @@ CP="$(winpath "$CACHE/stub-classes")"
 for jar in react-android-classes core-classes startup-classes annotation json; do
   CP="${CP}${SEP}$(winpath "$CACHE/libs/$jar.jar")"
 done
+if [ -n "$SDK_JAR" ] && [ -f "$SDK_JAR" ]; then
+  CP="${CP}${SEP}$(winpath "$SDK_JAR")"
+fi
 
 cat > "$CACHE/args.txt" <<ARGS
 -nowarn
 -classpath "$CP"
 -d "$(winpath "$CACHE/out")"
 "$(winpath "$SRC")"
+$EXTRA_SOURCES
 ARGS
 
 rm -rf "$CACHE/out"

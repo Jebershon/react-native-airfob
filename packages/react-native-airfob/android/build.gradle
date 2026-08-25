@@ -15,6 +15,21 @@ buildscript {
 apply plugin: "com.android.library"
 apply plugin: "org.jetbrains.kotlin.android"
 
+/**
+ * The licensed Airfob AAR is not in this repository and never will be. Rather
+ * than a source edit to switch adapters, the build detects it: drop the AAR in
+ * libs/ and the withSdk source set — which holds RealAirfobSdk and is the only
+ * code that imports MOCA classes — joins the compilation.
+ *
+ * Without it, main/ compiles on its own against the mock, which is what keeps
+ * CI green on a machine that has no licence.
+ */
+def airfobAars = file("libs").listFiles({ f -> f.name.endsWith(".aar") } as FileFilter)
+def hasAirfobSdk = airfobAars != null && airfobAars.length > 0
+logger.lifecycle(hasAirfobSdk
+        ? "Airfob: SDK found (" + airfobAars*.name.join(", ") + ") — building RealAirfobSdk"
+        : "Airfob: no SDK in libs/ — building against MockAirfobSdk")
+
 android {
     namespace "com.airfob"
     compileSdkVersion safeExtGet("compileSdkVersion", 35)
@@ -34,6 +49,14 @@ android {
         jvmTarget = "17"
     }
 
+    sourceSets {
+        main {
+            if (hasAirfobSdk) {
+                java.srcDirs += "src/withSdk/java"
+            }
+        }
+    }
+
     lintOptions {
         abortOnError false
     }
@@ -43,8 +66,8 @@ repositories {
     google()
     mavenCentral()
 
-    // P5: the Airfob AAR is distributed privately. Either drop it in libs/ or
-    // point this at MOCA's Maven repository once you have credentials.
+    // MOCA distribute privately: either a file drop into libs/, or their Maven
+    // repository once you have credentials from an authorised dealer.
     flatDir { dirs "libs" }
 }
 
@@ -57,6 +80,8 @@ dependencies {
     // page happens to be open.
     implementation "androidx.startup:startup-runtime:1.1.1"
 
-    // P5 — uncomment once the licensed AAR is in libs/
-    // implementation(name: "airfob-sdk-2.5.38", ext: "aar")
+    // Picked up automatically when present. Nothing to uncomment.
+    if (hasAirfobSdk) {
+        implementation fileTree(dir: "libs", include: ["*.aar"])
+    }
 }

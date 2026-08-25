@@ -165,38 +165,6 @@ public final class MockAirfobSdk: AirfobSdk {
     }
 }
 
-// MARK: - real
-
-/// P5. Each method maps to one call in MOCA's SDK reference, which ships inside
-/// the gated SDK archive rather than being published on developers.airfob.com.
-///
-/// On iOS the background story is CoreBluetooth state restoration plus the
-/// bluetooth-central background mode, so `boot` must run early enough for the
-/// system to hand back a restored central manager after a relaunch.
-public final class RealAirfobSdk: AirfobSdk {
-
-    private let emit: SdkEmitter
-
-    public init(emit: @escaping SdkEmitter) {
-        self.emit = emit
-    }
-
-    private func notImplemented(_ method: String) -> AirfobError {
-        AirfobError("E_NOT_READY", "RealAirfobSdk.\(method) is not implemented — see P5")
-    }
-
-    public func boot(config: [String: Any]) throws { throw notImplemented("boot") }
-    public func status() -> AirfobSdkStatus {
-        AirfobSdkStatus(sdkReady: false, registered: false, licence: "unknown", cardCount: 0)
-    }
-    public func register(token: String) throws -> [AirfobCard] { throw notImplemented("register") }
-    public func cards() -> [AirfobCard] { [] }
-    public func unlock(cardId: String?) throws -> String { throw notImplemented("unlock") }
-    public func unregister(cardId: String?) throws -> [AirfobCard] { throw notImplemented("unregister") }
-    public func resetRssi() throws { throw notImplemented("resetRssi") }
-    public func teardown() {}
-}
-
 // MARK: - core
 
 /// Process-wide owner of the SDK instance.
@@ -215,9 +183,20 @@ public final class AirfobCore: NSObject {
     private var booted = false
     private let lock = NSLock()
 
-    /// Swap to RealAirfobSdk in P5. This is the only line that has to change.
+    /// Real adapter when the licensed framework is vendored, mock otherwise.
+    ///
+    /// AIRFOB_SDK is set by the podspec, which switches it on only when an
+    /// .xcframework is present in ios/Frameworks — so there is no source edit to
+    /// remember, and a build without a licence still compiles.
     private func create() -> AirfobSdk {
-        MockAirfobSdk(emit: { [weak self] name, data in self?.dispatch(name, data) })
+        let emitter: SdkEmitter = { [weak self] name, data in self?.dispatch(name, data) }
+        #if AIRFOB_SDK
+        AirfobLog.shared.write("info", "sdk", "ADAPTER", "Using RealAirfobSdk")
+        return RealAirfobSdk(emit: emitter)
+        #else
+        AirfobLog.shared.write("info", "sdk", "ADAPTER", "No Airfob SDK in this build — using MockAirfobSdk")
+        return MockAirfobSdk(emit: emitter)
+        #endif
     }
 
     @objc public var isMock: Bool {

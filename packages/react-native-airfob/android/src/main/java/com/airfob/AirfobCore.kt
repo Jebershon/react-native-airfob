@@ -19,9 +19,44 @@ object AirfobCore {
     @Volatile private var emitter: SdkEmitter? = null
     @Volatile private var booted = false
 
-    /** Swap to RealAirfobSdk in P5. This is the only line that has to change. */
-    private fun create(context: Context): AirfobSdk =
-        MockAirfobSdk(context.applicationContext, ::dispatch)
+    /**
+     * Real adapter when the licensed AAR is in android/libs/, mock otherwise —
+     * decided at build time by the source set, resolved here by name.
+     *
+     * Looked up reflectively rather than referenced directly because
+     * RealAirfobSdkFactory lives in src/withSdk, which is not compiled without
+     * the AAR. Naming it here would break every build that has no licence,
+     * including CI.
+     */
+    private fun create(context: Context): AirfobSdk {
+        val app = context.applicationContext
+
+        val factory = runCatching {
+            Class.forName("com.airfob.RealAirfobSdkFactory")
+                .getDeclaredConstructor()
+                .newInstance() as AirfobSdkFactory
+        }.getOrNull()
+
+        if (factory == null) {
+            AirfobLog.write(
+                "info", "sdk", "ADAPTER",
+                "No Airfob SDK in this build — using MockAirfobSdk"
+            )
+            return MockAirfobSdk(app, ::dispatch)
+        }
+
+        return runCatching { factory.create(app, ::dispatch) }
+            .onSuccess { AirfobLog.write("info", "sdk", "ADAPTER", "Using RealAirfobSdk") }
+            .getOrElse {
+                // A broken real adapter must not leave the app with no adapter at
+                // all; degrade to the mock and say so in the diagnostics.
+                AirfobLog.write(
+                    "error", "sdk", "ADAPTER_FAIL",
+                    "RealAirfobSdk could not be created: ${it.message}"
+                )
+                MockAirfobSdk(app, ::dispatch)
+            }
+    }
 
     /** True while the mock is in use — surfaced in diagnostics so it is never a surprise. */
     val isMock: Boolean

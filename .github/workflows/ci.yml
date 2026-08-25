@@ -78,6 +78,11 @@ jobs:
       - name: Type-check against the real iOS SDK
         run: npm run verify:ios --workspace react-native-airfob
 
+      - name: Podspec syntax
+        # It contains Ruby that detects a vendored Airfob framework, and a
+        # syntax error there only surfaces at pod install on someone's Mac.
+        run: ruby -c packages/react-native-airfob/react-native-airfob.podspec
+
   package:
     name: Package
     runs-on: ubuntu-latest

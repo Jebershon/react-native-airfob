@@ -1,0 +1,2 @@
+Drop the licensed Airfob AAR here. It is gitignored (**/libs/*.aar) and the CI
+package job fails the build if one is ever tracked — the repository is public.

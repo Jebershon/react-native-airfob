@@ -154,33 +154,16 @@ class MockAirfobSdk(
     }
 }
 
-/* ------------------------------------------------------------------ real --- */
+/* --------------------------------------------------------------- factory --- */
 
 /**
- * P5. Each method maps to one call in MOCA's SDK reference, which ships inside
- * the gated SDK archive rather than being published on developers.airfob.com.
+ * Lets [AirfobCore] obtain a real adapter without the main source set naming a
+ * class that may not be compiled. RealAirfobSdkFactory lives in src/withSdk and
+ * exists only when the licensed AAR is in libs/; [AirfobCore] looks it up by
+ * name and falls back to the mock.
  *
- * What the public changelog already tells us to expect here:
- *  - scanning runs behind a foreground service, so [boot] must create the
- *    notification channel and start it
- *  - there is an RSSI-reset API; the tap threshold will need per-reader tuning
- *  - the licence expires, so surface "expired" through [status] rather than
- *    letting unlock fail with an opaque error
+ * Implementations must have a no-argument constructor.
  */
-class RealAirfobSdk(
-    private val context: Context,
-    private val emit: SdkEmitter
-) : AirfobSdk {
-
-    private fun notImplemented(method: String): Nothing =
-        throw AirfobError("E_NOT_READY", "RealAirfobSdk.$method is not implemented — see P5")
-
-    override fun boot(config: Map<String, Any?>) = notImplemented("boot")
-    override fun status(): SdkStatus = notImplemented("status")
-    override fun register(token: String): List<Card> = notImplemented("register")
-    override fun cards(): List<Card> = notImplemented("cards")
-    override fun unlock(cardId: String?): String = notImplemented("unlock")
-    override fun unregister(cardId: String?): List<Card> = notImplemented("unregister")
-    override fun resetRssi() = notImplemented("resetRssi")
-    override fun teardown() { /* no-op until the SDK is linked */ }
+interface AirfobSdkFactory {
+    fun create(context: Context, emit: SdkEmitter): AirfobSdk
 }

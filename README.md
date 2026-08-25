@@ -202,12 +202,17 @@ native code, so that is the normal state for a Mendix developer building pages.
 | **P3a** ✅ | 7 Mendix JS actions, sidecars, install CLI | — |
 | **P3b** ◐ | domain-model generator + build sheet done; the .mpr work itself | needs Studio Pro |
 | **P4** ✅ | correlation ids, log retention, automatic support capture | — |
-| P5 | `RealAirfobSdk` (Android, then iOS) | **SDK licence** |
+| P5 | `RealAirfobSdk` — scaffolding and auto-detection done; the MOCA calls themselves | **SDK licence** |
 | P6 | telemetry: success rate, time-to-unlock, per-device model | P5 |
 
 P1–P4 need nothing from MOCA.
 
 ## Before P5
+
+The adapter swap is automatic: drop the AAR in `android/libs/` or the
+`.xcframework` in `ios/Frameworks/` and the build picks it up — no source edit,
+no flag. See [docs/P5-INTEGRATION.md](docs/P5-INTEGRATION.md).
+
 
 The Airfob SDK is proprietary. `developers.airfob.com/sdk` is a download and
 changelog page; the API reference ships inside the gated archive. Access needs

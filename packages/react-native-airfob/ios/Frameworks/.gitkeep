@@ -1,0 +1,3 @@
+Drop the licensed Airfob .xcframework here. It is gitignored
+(**/Frameworks/*.framework, **/*.xcframework) and the CI package job fails the
+build if one is ever tracked — the repository is public.
