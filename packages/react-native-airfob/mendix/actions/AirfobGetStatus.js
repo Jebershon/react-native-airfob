@@ -12,28 +12,97 @@ import Airfob from "react-native-airfob";
 // BEGIN EXTRA CODE
 // @airfob-generated — installed by "npx react-native-airfob install-mendix".
 // Re-run that command to update; local edits here will be overwritten.
+
+// Rewritten by the installer when --module is used. Keep on one line.
+const AIRFOB_MODULE = "Airfob";
+
+/**
+ * Nanoflows cannot call an import mapping — those activities are microflow-only —
+ * and cannot parse JSON, so the action builds the Mendix object itself.
+ * Every value must be non-null and already the right type for its attribute.
+ */
+function createAirfobObject(entityName, values) {
+    return new Promise((resolve, reject) => {
+        mx.data.create({
+            entity: AIRFOB_MODULE + "." + entityName,
+            callback: object => {
+                Object.keys(values).forEach(key => object.set(key, values[key]));
+                resolve(object);
+            },
+            error: reject
+        });
+    });
+}
+
+function airfobResult(ok, code, message, result) {
+    return createAirfobObject("AirfobResult", {
+        ok: ok,
+        code: code || "",
+        message: message || "",
+        result: result || ""
+    });
+}
+
 // END EXTRA CODE
 
 /**
- * Current SDK state. Cheap — safe to call on every page show.
+ * Current SDK state as an AirfobStatus object. Cheap — safe to call on every
+ * page show.
  *
- * Returns: String (JSON). Deserialize with the AirfobStatus import mapping.
- *   {"ok":true,"sdkReady":true,"mock":false,"registered":true,
- *    "bluetooth":"on","permissions":"granted","licence":"valid",
- *    "cardCount":1,"version":"0.2.0"}
+ * summary and problemCount come from the diagnostics so a page can show
+ * "Ready to tap" or "2 issues" without a second call or a list activity.
  *
- * @returns {Promise.<string>}
+ * Studio Pro
+ *   returns  Object (Airfob.AirfobStatus)
+ *
+ * @returns {Promise.<MxObject>}
  */
 export async function AirfobGetStatus() {
     // BEGIN USER CODE
     try {
         const status = await Airfob.getStatus();
-        return JSON.stringify({ ok: true, ...status });
+
+        let summary = "unknown";
+        let problemCount = 0;
+        try {
+            const diagnostics = await Airfob.getDiagnostics();
+            summary = diagnostics.summary;
+            problemCount = diagnostics.checks.filter(check => check.state !== "pass").length;
+        } catch (e) {
+            // Status is still useful without diagnostics; do not fail the whole call.
+            Airfob.log.write("warn", "bridge", e.code || "E_SDK", "diagnostics: " + e.message);
+        }
+
+        return createAirfobObject("AirfobStatus", {
+            ok: true,
+            code: "",
+            message: "",
+            sdkReady: !!status.sdkReady,
+            mock: !!status.mock,
+            registered: !!status.registered,
+            bluetooth: status.bluetooth || "unknown",
+            permissions: status.permissions || "unknown",
+            licence: status.licence || "unknown",
+            cardCount: status.cardCount || 0,
+            version: status.version || "",
+            summary: summary,
+            problemCount: problemCount
+        });
     } catch (e) {
-        return JSON.stringify({
+        return createAirfobObject("AirfobStatus", {
             ok: false,
             code: e.code || "E_SDK",
-            message: e.message || String(e)
+            message: e.message || String(e),
+            sdkReady: false,
+            mock: false,
+            registered: false,
+            bluetooth: "unknown",
+            permissions: "unknown",
+            licence: "unknown",
+            cardCount: 0,
+            version: Airfob.version,
+            summary: "fail",
+            problemCount: 0
         });
     }
     // END USER CODE

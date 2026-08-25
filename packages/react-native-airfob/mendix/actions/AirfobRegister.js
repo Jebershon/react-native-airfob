@@ -12,6 +12,37 @@ import Airfob from "react-native-airfob";
 // BEGIN EXTRA CODE
 // @airfob-generated — installed by "npx react-native-airfob install-mendix".
 // Re-run that command to update; local edits here will be overwritten.
+
+// Rewritten by the installer when --module is used. Keep on one line.
+const AIRFOB_MODULE = "Airfob";
+
+/**
+ * Nanoflows cannot call an import mapping — those activities are microflow-only —
+ * and cannot parse JSON, so the action builds the Mendix object itself.
+ * Every value must be non-null and already the right type for its attribute.
+ */
+function createAirfobObject(entityName, values) {
+    return new Promise((resolve, reject) => {
+        mx.data.create({
+            entity: AIRFOB_MODULE + "." + entityName,
+            callback: object => {
+                Object.keys(values).forEach(key => object.set(key, values[key]));
+                resolve(object);
+            },
+            error: reject
+        });
+    });
+}
+
+function airfobResult(ok, code, message, result) {
+    return createAirfobObject("AirfobResult", {
+        ok: ok,
+        code: code || "",
+        message: message || "",
+        result: result || ""
+    });
+}
+
 // END EXTRA CODE
 
 /**
@@ -19,47 +50,27 @@ import Airfob from "react-native-airfob";
  *
  * The token comes from YOUR backend calling the Airfob API server-to-server.
  * Never issue it from the app — the Airfob API key must not ship in a mobile
- * binary. Typical nanoflow: call a microflow that returns the token, then pass
- * it here.
+ * binary. Typical nanoflow: call a microflow that returns the token, pass it
+ * here, then branch on $Result/ok.
  *
- * Studio Pro parameters:
- *   token  String  (required)
- * Returns: String (JSON). Deserialize with the AirfobCards import mapping.
+ * Studio Pro
+ *   token    String  (required)
+ *   returns  Object (Airfob.AirfobResult)
  *
  * @param {string} token
- * @returns {Promise.<string>}
+ * @returns {Promise.<MxObject>}
  */
 export async function AirfobRegister(token) {
     // BEGIN USER CODE
     if (!token) {
-        return JSON.stringify({
-            ok: false,
-            code: "E_SDK",
-            message: "AirfobRegister requires a token"
-        });
+        return airfobResult(false, "E_SDK", "AirfobRegister requires a token", "");
     }
 
     try {
         const { cards } = await Airfob.register(token);
-        // accessLevels is an array of strings; flattening it keeps the Mendix
-        // import mapping one level deep instead of generating a child entity
-        // for what is really a label.
-        return JSON.stringify({
-            ok: true,
-            cards: cards.map(card => ({
-                id: card.id,
-                name: card.name,
-                siteName: card.siteName,
-                status: card.status,
-                accessLevels: (card.accessLevels || []).join(", ")
-            }))
-        });
+        return airfobResult(true, "", "", String(cards.length));
     } catch (e) {
-        return JSON.stringify({
-            ok: false,
-            code: e.code || "E_SDK",
-            message: e.message || String(e)
-        });
+        return airfobResult(false, e.code || "E_SDK", e.message || String(e), "");
     }
     // END USER CODE
 }

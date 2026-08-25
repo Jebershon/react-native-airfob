@@ -17,7 +17,7 @@
 import { CHECK, ERRORS, EVENTS, LOG_LEVELS, REMEDIATION, UNLOCK_RESULTS } from "./constants.js";
 import { impl, isMock, log } from "./nativeModule.js";
 
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 
 let bootConfig = null;
 let bootPromise = null;

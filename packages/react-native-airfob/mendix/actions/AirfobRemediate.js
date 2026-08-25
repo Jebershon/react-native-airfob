@@ -12,21 +12,25 @@ import Airfob from "react-native-airfob";
 // BEGIN EXTRA CODE
 // @airfob-generated — installed by "npx react-native-airfob install-mendix".
 // Re-run that command to update; local edits here will be overwritten.
+
+// Rewritten by the installer when --module is used. Keep on one line.
+const AIRFOB_MODULE = "Airfob";
+
 // END EXTRA CODE
 
 /**
  * Open the OS settings screen that fixes a failing check.
  *
- * Pass the "action" value from an AirfobCheck. Bind the button caption to
- * "actionLabel" and make it visible only when "action" is not empty.
+ * Pass $AirfobCheck/action. Bind the button caption to actionLabel and make it
+ * visible only when action is not empty.
  *
- * Android lands on the exact screen. iOS can only open this app's settings
- * page, and has no per-app battery exemption at all, so openBatterySettings
- * returns false there. Always show the check's "remedy" text as well.
+ * Android lands on the exact screen. iOS can only open this app's settings page,
+ * and has no per-app battery exemption at all, so openBatterySettings returns
+ * false there. Always show the check's remedy text as well.
  *
- * Studio Pro parameters:
+ * Studio Pro
  *   actionId  String  (required)
- * Returns: Boolean — false means nothing was opened; show the remedy instead.
+ *   returns   Boolean — false means nothing opened; show the remedy instead
  *
  * @param {string} actionId
  * @returns {Promise.<boolean>}

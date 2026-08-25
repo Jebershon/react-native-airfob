@@ -12,20 +12,24 @@ import Airfob from "react-native-airfob";
 // BEGIN EXTRA CODE
 // @airfob-generated — installed by "npx react-native-airfob install-mendix".
 // Re-run that command to update; local edits here will be overwritten.
+
+// Rewritten by the installer when --module is used. Keep on one line.
+const AIRFOB_MODULE = "Airfob";
+
 // END EXTRA CODE
 
 /**
  * Start the Airfob SDK. Idempotent and safe to call from any page.
  *
- * Call this from the home page on-load nanoflow. Mendix after-startup runs a
- * MICROFLOW (server-side) which cannot reach a JavaScript action, and it is not
- * needed anyway: the SDK already boots in native code at process launch, so
- * tap-and-go works with the app closed. This call is only a safety net.
+ * Call this from the home page on-load nanoflow. Mendix After Startup runs a
+ * MICROFLOW, server-side, which cannot reach a JavaScript action — and it is not
+ * needed anyway: the SDK already boots in native code at process launch, which
+ * is what makes tap-and-go work with the app closed. This is a safety net.
  *
- * Studio Pro parameters:
- *   siteId    String  (optional)
- *   logLevel  String  (optional) off | error | warn | info | debug
- * Returns: Boolean — false means the SDK is unavailable, check the log.
+ * Studio Pro
+ *   siteId    String   (optional)
+ *   logLevel  String   (optional) off | error | warn | info | debug
+ *   returns   Boolean
  *
  * @param {string} siteId
  * @param {string} logLevel

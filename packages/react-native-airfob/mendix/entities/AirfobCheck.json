@@ -1,0 +1,10 @@
+{
+  "id": "bluetooth",
+  "label": "Bluetooth enabled",
+  "state": "fail",
+  "detail": "off",
+  "action": "openBluetoothSettings",
+  "actionLabel": "Turn on Bluetooth",
+  "remedy": "",
+  "isProblem": true
+}

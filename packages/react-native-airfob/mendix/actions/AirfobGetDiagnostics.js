@@ -12,49 +12,82 @@ import Airfob from "react-native-airfob";
 // BEGIN EXTRA CODE
 // @airfob-generated — installed by "npx react-native-airfob install-mendix".
 // Re-run that command to update; local edits here will be overwritten.
+
+// Rewritten by the installer when --module is used. Keep on one line.
+const AIRFOB_MODULE = "Airfob";
+
+/**
+ * Nanoflows cannot call an import mapping — those activities are microflow-only —
+ * and cannot parse JSON, so the action builds the Mendix object itself.
+ * Every value must be non-null and already the right type for its attribute.
+ */
+function createAirfobObject(entityName, values) {
+    return new Promise((resolve, reject) => {
+        mx.data.create({
+            entity: AIRFOB_MODULE + "." + entityName,
+            callback: object => {
+                Object.keys(values).forEach(key => object.set(key, values[key]));
+                resolve(object);
+            },
+            error: reject
+        });
+    });
+}
+
+function airfobResult(ok, code, message, result) {
+    return createAirfobObject("AirfobResult", {
+        ok: ok,
+        code: code || "",
+        message: message || "",
+        result: result || ""
+    });
+}
+
 // END EXTRA CODE
 
 /**
- * Every precondition that has to hold before a tap can open a door.
+ * Every precondition that has to hold before a tap can open a door, as a list of
+ * AirfobCheck objects. Bind a list view straight to it.
  *
  * Each check carries either an "action" to hand to AirfobRemediate, or a
- * "remedy" string to show the user. Render both when present — on iOS the
- * button only reaches the app settings page, so the words are what tell the
- * user what to change.
+ * "remedy" string to show. Render both when present — on iOS the button only
+ * reaches the app settings page, so the words carry the instruction.
  *
- * Nulls are normalised to empty strings so the Mendix import mapping produces
- * String attributes rather than failing to infer a type.
+ * Nulls are normalised to empty strings because a Mendix String attribute
+ * cannot hold null.
  *
- * Returns: String (JSON). Deserialize with the AirfobDiagnostics import mapping.
+ * Studio Pro
+ *   returns  List (Airfob.AirfobCheck)
  *
- * @returns {Promise.<string>}
+ * @returns {Promise.<MxObject[]>}
  */
 export async function AirfobGetDiagnostics() {
     // BEGIN USER CODE
+    let checks = [];
     try {
         const diagnostics = await Airfob.getDiagnostics();
-        return JSON.stringify({
-            ok: true,
-            summary: diagnostics.summary,
-            devicePlatform: diagnostics.device.platform,
-            deviceModel: diagnostics.device.model,
-            deviceOsVersion: diagnostics.device.osVersion,
-            checks: diagnostics.checks.map(check => ({
-                id: check.id,
-                label: check.label,
-                state: check.state,
-                detail: check.detail || "",
-                action: check.action || "",
-                actionLabel: check.actionLabel || "",
-                remedy: check.remedy || ""
-            }))
-        });
+        checks = diagnostics.checks;
     } catch (e) {
-        return JSON.stringify({
-            ok: false,
-            code: e.code || "E_SDK",
-            message: e.message || String(e)
-        });
+        checks = [{
+            id: "error",
+            label: "Could not read diagnostics",
+            state: "fail",
+            detail: e.message || String(e),
+            action: "",
+            actionLabel: "",
+            remedy: "Restart the app. If this persists, send a support bundle."
+        }];
     }
+
+    return Promise.all(checks.map(check => createAirfobObject("AirfobCheck", {
+        id: check.id,
+        label: check.label,
+        state: check.state,
+        detail: check.detail || "",
+        action: check.action || "",
+        actionLabel: check.actionLabel || "",
+        remedy: check.remedy || "",
+        isProblem: check.state !== "pass"
+    })));
     // END USER CODE
 }

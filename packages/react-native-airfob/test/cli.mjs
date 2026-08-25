@@ -103,16 +103,16 @@ check("every sidecar pins the exact package version", () => {
   }
 });
 
-check("copies the import-mapping samples", () => {
-  const dir = path.join(project, "airfob-mappings");
+check("copies the entity definitions", () => {
+  const dir = path.join(project, "airfob-entities");
   assert.ok(fs.existsSync(dir));
-  assert.ok(fs.readdirSync(dir).length >= 5);
+  assert.ok(fs.readdirSync(dir).length >= 4);
 });
 
-check("mapping samples contain no nulls", () => {
-  // Studio Pro infers attribute types from the sample; null infers nothing and
-  // the generated entity silently loses the attribute.
-  const dir = path.join(project, "airfob-mappings");
+check("entity definitions contain no nulls", () => {
+  // A Mendix String attribute cannot hold null, and a null gives the spec
+  // generator no type to report.
+  const dir = path.join(project, "airfob-entities");
   for (const file of fs.readdirSync(dir)) {
     const raw = fs.readFileSync(path.join(dir, file), "utf8");
     assert.ok(!/:\s*null/.test(raw), `${file} contains a null`);
@@ -181,9 +181,22 @@ check("--force overwrites a hand-authored action", () => {
 check("--module installs into a different Mendix module", () => {
   const other = makeProject();
   assert.equal(run("install-mendix", other, "--module", "AccessControl").status, 0);
-  assert.ok(fs.existsSync(path.join(other, "javascriptsource", "AccessControl", "actions", "AirfobBoot.js")));
+  const dir = path.join(other, "javascriptsource", "AccessControl", "actions");
+  assert.ok(fs.existsSync(path.join(dir, "AirfobBoot.js")));
+
+  // mx.data.create needs a fully qualified entity name, so the module is baked
+  // in at install time. Getting this wrong fails at runtime, not at build.
+  const body = fs.readFileSync(path.join(dir, "AirfobGetStatus.js"), "utf8");
+  assert.match(body, /const AIRFOB_MODULE = "AccessControl";/);
+  assert.ok(!/const AIRFOB_MODULE = "Airfob";/.test(body), "default module leaked through");
+
   assert.equal(run("check-mendix", other, "--module", "AccessControl").status, 0);
   fs.rmSync(other, { recursive: true, force: true });
+});
+
+check("default install keeps the default module name", () => {
+  const body = fs.readFileSync(path.join(actionsIn(project), "AirfobGetStatus.js"), "utf8");
+  assert.match(body, /const AIRFOB_MODULE = "Airfob";/);
 });
 
 check("check-mendix fails when nothing is installed", () => {
@@ -196,7 +209,7 @@ check("check-mendix fails when nothing is installed", () => {
 
 /* -------------------------------------------------------------- action body */
 
-check("every packaged action imports the package and is marked generated", () => {
+check("every packaged action is well formed", () => {
   for (const file of sourceActions) {
     const body = fs.readFileSync(path.join(pkgRoot, "mendix", "actions", file), "utf8");
     assert.match(body, /import Airfob from "react-native-airfob";/, `${file} does not import the package`);
@@ -204,6 +217,63 @@ check("every packaged action imports the package and is marked generated", () =>
     // Studio Pro only preserves what sits between these markers.
     assert.match(body, /BEGIN USER CODE[\s\S]*END USER CODE/, `${file} lacks USER CODE markers`);
     assert.ok(!body.includes("NativeModules"), `${file} reaches past the package API`);
+    // The installer rewrites this line, so it must stay unique and on one line.
+    const moduleLines = (body.match(/^const AIRFOB_MODULE = /gm) || []).length;
+    assert.ok(moduleLines <= 1, `${file} declares AIRFOB_MODULE more than once`);
+  }
+});
+
+check("actions that build objects never hardcode a module prefix", () => {
+  for (const file of sourceActions) {
+    const body = fs.readFileSync(path.join(pkgRoot, "mendix", "actions", file), "utf8");
+    if (!body.includes("mx.data.create")) continue;
+    assert.match(body, /^const AIRFOB_MODULE = /m, `${file} builds objects with no module constant`);
+    // "Airfob.AirfobStatus" baked into a string would survive --module and then
+    // fail at runtime against a module that does not exist.
+    assert.ok(!/"Airfob\.Airfob/.test(body), `${file} hardcodes a qualified entity name`);
+  }
+});
+
+/* -------------------------------------------------------------------- spec */
+
+check("spec lists every entity with no problems", () => {
+  const r = run("spec");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  for (const entity of ["AirfobStatus", "AirfobCheck", "AirfobResult", "AirfobSupportBundle"]) {
+    assert.ok(r.stdout.includes(entity), `spec omits ${entity}`);
+  }
+  assert.ok(!r.stdout.includes("PROBLEMS"), "spec reported problems");
+});
+
+check("spec --json is machine readable and typed", () => {
+  const r = run("spec", "--json");
+  assert.equal(r.status, 0);
+  const parsed = JSON.parse(r.stdout);
+  assert.equal(parsed.entities.length, 4);
+
+  const status = parsed.entities.find(e => e.name === "AirfobStatus");
+  assert.equal(status.persistable, false, "entities must be non-persistable");
+  assert.equal(status.attributes.find(a => a.name === "cardCount").type, "Integer");
+  assert.equal(status.attributes.find(a => a.name === "sdkReady").type, "Boolean");
+  assert.equal(status.attributes.find(a => a.name === "bluetooth").type, "String");
+});
+
+check("spec covers every attribute the actions set", () => {
+  // A missing attribute fails inside mx.data.create at runtime, not at build
+  // time, so this is the only place it gets caught early.
+  const parsed = JSON.parse(run("spec", "--json").stdout);
+  const known = new Set(parsed.entities.flatMap(e => e.attributes.map(a => a.name)));
+
+  for (const file of sourceActions) {
+    const body = fs.readFileSync(path.join(pkgRoot, "mendix", "actions", file), "utf8");
+    for (const block of body.match(/createAirfobObject\("[A-Za-z]+", \{[^}]*\}/g) || []) {
+      for (const line of block.split("\n").slice(1)) {
+        const match = line.match(/^\s+([a-zA-Z]+):/);
+        if (match) {
+          assert.ok(known.has(match[1]), `${file} sets unknown attribute "${match[1]}"`);
+        }
+      }
+    }
   }
 });
 

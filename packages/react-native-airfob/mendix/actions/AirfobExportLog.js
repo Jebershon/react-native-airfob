@@ -12,30 +12,56 @@ import Airfob from "react-native-airfob";
 // BEGIN EXTRA CODE
 // @airfob-generated — installed by "npx react-native-airfob install-mendix".
 // Re-run that command to update; local edits here will be overwritten.
+
+// Rewritten by the installer when --module is used. Keep on one line.
+const AIRFOB_MODULE = "Airfob";
+
+/**
+ * Nanoflows cannot call an import mapping — those activities are microflow-only —
+ * and cannot parse JSON, so the action builds the Mendix object itself.
+ * Every value must be non-null and already the right type for its attribute.
+ */
+function createAirfobObject(entityName, values) {
+    return new Promise((resolve, reject) => {
+        mx.data.create({
+            entity: AIRFOB_MODULE + "." + entityName,
+            callback: object => {
+                Object.keys(values).forEach(key => object.set(key, values[key]));
+                resolve(object);
+            },
+            error: reject
+        });
+    });
+}
+
+function airfobResult(ok, code, message, result) {
+    return createAirfobObject("AirfobResult", {
+        ok: ok,
+        code: code || "",
+        message: message || "",
+        result: result || ""
+    });
+}
+
 // END EXTRA CODE
 
 /**
  * Build a support bundle: the on-device log plus the context that explains it.
  *
- * Attach the returned "bundle" string to a FileDocument, or store it on a
- * support-ticket entity. This is what turns "it didn't work" into something a
- * support engineer can act on.
- *
  * BLE access control fails silently, in a pocket, on a handset you do not have.
  * The log survives process death precisely because the failing tap happened
  * hours before the user opened the app to complain.
  *
- * Access logs are personal data. Agree a retention period before P4 wires this
- * to a backend entity.
+ * Store the "bundle" string on a support-ticket entity or a FileDocument.
+ * Access logs are personal data — agree a retention period before wiring this
+ * to a backend in P4.
  *
- * Studio Pro parameters:
+ * Studio Pro
  *   contextJson  String  (optional) extra fields, e.g. {"user":"..."}
- * Returns: String (JSON) {"ok":true,"path":"...","entryCount":42,"bundle":"..."}
- *   where "bundle" is the full JSON blob to persist. "path" is the on-device
- *   file, or empty when there is no native module to write one.
+ *   returns      Object (Airfob.AirfobSupportBundle)
  *
  * @param {string} contextJson
- * @returns {Promise.<string>}
+ * @returns {Promise.<MxObject>}
  */
 export async function AirfobExportLog(contextJson) {
     // BEGIN USER CODE
@@ -44,27 +70,35 @@ export async function AirfobExportLog(contextJson) {
         try {
             context = JSON.parse(contextJson);
         } catch (e) {
-            return JSON.stringify({
+            return createAirfobObject("AirfobSupportBundle", {
                 ok: false,
                 code: "E_BAD_PAYLOAD",
-                message: "contextJson is not valid JSON"
+                message: "contextJson is not valid JSON",
+                path: "",
+                entryCount: 0,
+                bundle: ""
             });
         }
     }
 
     try {
-        const bundle = await Airfob.log.export(context);
-        return JSON.stringify({
+        const exported = await Airfob.log.export(context);
+        return createAirfobObject("AirfobSupportBundle", {
             ok: true,
-            path: bundle.path || "",
-            entryCount: bundle.content.entryCount,
-            bundle: JSON.stringify(bundle.content)
+            code: "",
+            message: "",
+            path: exported.path || "",
+            entryCount: exported.content.entryCount,
+            bundle: JSON.stringify(exported.content)
         });
     } catch (e) {
-        return JSON.stringify({
+        return createAirfobObject("AirfobSupportBundle", {
             ok: false,
             code: e.code || "E_SDK",
-            message: e.message || String(e)
+            message: e.message || String(e),
+            path: "",
+            entryCount: 0,
+            bundle: ""
         });
     }
     // END USER CODE

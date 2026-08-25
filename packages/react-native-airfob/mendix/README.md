@@ -1,121 +1,81 @@
 # Airfob in Mendix
 
-Everything here is generated from the npm package. Install it, then do four
-things in Studio Pro.
+Everything here is generated from the npm package.
 
 ```bash
 npx react-native-airfob install-mendix ./MyMendixApp
+npx react-native-airfob spec                          # the domain model to build
+npx react-native-airfob check-mendix ./MyMendixApp    # CI gate
 ```
 
-That writes seven JavaScript actions plus their native-dependency sidecars into
-`javascriptsource/Airfob/actions/`, and drops the import-mapping samples into
-`airfob-mappings/`.
+Then follow [STUDIO-PRO.md](STUDIO-PRO.md) — a build sheet with the pages,
+nanoflows, and verification checklist.
 
-```bash
-npx react-native-airfob check-mendix ./MyMendixApp     # CI gate
-```
+## The constraint that shapes all of this
 
-Fails the build if a sidecar drifted or an action was edited by hand. Worth
-wiring into CI: Mendix rejects semver ranges and refuses to package an app when
-two components pin different versions, so drift is a build break, not a warning.
+**Nanoflows cannot call an import mapping** — *"these activities can only be used
+in microflows"* — and they cannot parse JSON either.
+
+So the JavaScript actions do not return JSON for a nanoflow to deserialize.
+They build Mendix objects directly with `mx.data.create` and return them, which
+means:
+
+- the four entities must exist with **exactly** the attribute names in `spec`
+- the module name is **baked into the action source** at install time, because
+  `mx.data.create` needs a fully qualified entity name
+- never move the installed files by hand — re-run the installer with `--module`
+
+A wrong attribute name fails at runtime inside the action, not at build time.
+That is why `spec` exists and why a test asserts every attribute the actions set
+appears in it.
 
 ## No widget
 
-There is deliberately no pluggable widget. Tap-and-go is headless — the door
-opens with the app closed and no JavaScript running — so there is nothing to
-render on the hot path. JavaScript actions keep the UI in Atlas where your
-Mendix developers can restyle it without touching React.
+Tap-and-go is headless — the door opens with the app closed and no JavaScript
+running — so there is nothing to render on the hot path. JavaScript actions keep
+the UI in Atlas where your Mendix developers can restyle it without touching
+React.
 
 ## The seven actions
 
-| Action | Parameters | Returns |
+| Action | Parameters | Return type |
 |---|---|---|
 | `AirfobBoot` | `siteId` String, `logLevel` String | Boolean |
-| `AirfobGetStatus` | – | String (JSON) |
-| `AirfobGetDiagnostics` | – | String (JSON) |
-| `AirfobRegister` | `token` String | String (JSON) |
-| `AirfobUnlock` | `cardId` String | String (JSON) |
+| `AirfobGetStatus` | – | Object → `AirfobStatus` |
+| `AirfobGetDiagnostics` | – | List → `AirfobCheck` |
+| `AirfobRegister` | `token` String | Object → `AirfobResult` |
+| `AirfobUnlock` | `cardId` String | Object → `AirfobResult` |
 | `AirfobRemediate` | `actionId` String | Boolean |
-| `AirfobExportLog` | `contextJson` String | String (JSON) |
+| `AirfobExportLog` | `contextJson` String | Object → `AirfobSupportBundle` |
 
-Every JSON return carries `ok`, plus `code` and `message` when `ok` is false.
-Branch on `ok` in the nanoflow rather than relying on error handling.
+Studio Pro cannot infer return types — set them by hand. Each action's header
+comment states which.
 
-## 1. Generate the entities — do not build them by hand
+`AirfobStatus` and `AirfobResult` carry `ok`, `code`, and `message`. Branch on
+`ok` in the nanoflow rather than relying on error handling.
 
-Studio Pro's Import Mapping wizard builds the domain model from a sample
-message. For each file in `airfob-mappings/`:
+## Domain model
 
-> right-click the module → **Add other → Import Mapping** → *Use a JSON
-> structure* → paste the file contents
+Four non-persistable entities, 31 attributes. `npx react-native-airfob spec`
+prints them; `--json` gives a machine-readable form to diff against what you
+built.
 
-| Sample | Produces |
-|---|---|
-| `status.json` | `AirfobStatus` |
-| `diagnostics.json` | `AirfobDiagnostics` + `AirfobCheck` (1-*) |
-| `cards.json` | `AirfobCard` |
-| `unlock.json` | `AirfobUnlockResult` |
-| `export.json` | `AirfobSupportBundle` |
+Non-persistable on purpose: the device is the source of truth, and access data
+carries retention obligations you do not want in the database.
 
-Make them **non-persistable**. None of this belongs in the database — the device
-is the source of truth, and access data has retention obligations.
-
-Each sample carries both the success fields and the `{ok, code, message}`
-envelope, so one entity covers both outcomes. Every field is populated on
-purpose: Studio Pro cannot infer a type from `null`, and a null in the sample
-silently drops the attribute.
-
-## 2. Boot the SDK
-
-Call `AirfobBoot` from the **home page on-load nanoflow**.
-
-Not from After Startup — that runs a *microflow*, server-side, which cannot reach
-a JavaScript action. It does not matter anyway: the SDK already starts in native
-code at process launch, which is what makes tap-and-go work with the app closed.
-This call is a safety net, and it is idempotent.
-
-## 3. Activate access
-
-One page, one button, visible only when `AirfobStatus/registered` is false.
-
-```
-nanoflow ACT_Airfob_Activate
-  1. IVK_Airfob_IssueToken          microflow — your backend calls the Airfob
-                                    API server-to-server and returns a token
-  2. AirfobRegister($token)         JavaScript action
-  3. Import Mapping -> AirfobCard
-  4. if $Result/ok  ->  show success
-     else           ->  show $Result/message
-```
-
-The Airfob API key stays on the server. Never issue a token from the app.
-
-## 4. Access status
-
-A list view over `AirfobCheck` from `AirfobGetDiagnostics`.
-
-- **Conditional formatting** on `state`: `pass` green, `warn` amber, `fail` red
-- **Button** captioned from `actionLabel`, visible when `action` is not empty,
-  calling `AirfobRemediate($AirfobCheck/action)`
-- **Text** bound to `remedy`, visible when not empty
-
-Render `remedy` **as well as** the button, not only when the button is absent.
-On Android the button lands on the exact settings screen; on iOS it can only
-reach this app's settings page, so the words carry the instruction.
-
-Refresh on show, and after any `AirfobRemediate` returns.
+`entities/` is the single source of truth — the spec output and the actions are
+both derived from it, so they cannot drift apart.
 
 ## Two things that will otherwise surprise you
 
-**Make It Native cannot run this.** It is a fixed binary from the app stores and
-can never contain custom native code. The package detects the missing native
-module and falls back to a JS mock rather than throwing, so your pages still
-render and the diagnostics screen reports `Native SDK linked: warn`. Build a
-custom developer app before testing real unlocks.
+**Make It Native cannot run this.** It is a fixed store binary and can never
+contain custom native code. The package falls back to a JS mock rather than
+throwing, so pages still render and diagnostics reports `Native SDK linked:
+warn`. Build a custom developer app before testing real unlocks.
 
 **Mendix native has no long-press**, so the dev panel cannot use the gesture the
-example app uses. Use a tap counter on the version label — a page variable
-incremented by an on-click nanoflow, revealing the panel at seven.
+example app uses. Use a tap counter on the version label — see STUDIO-PRO.md
+step 8.
 
 ## Updating
 
@@ -124,6 +84,10 @@ npm install react-native-airfob@latest
 npx react-native-airfob install-mendix ./MyMendixApp
 ```
 
-Sidecars are rewritten from the package version, so they cannot drift. Actions
-carrying the `@airfob-generated` marker are overwritten; anything you wrote by
-hand is skipped unless you pass `--force`.
+Sidecars are rewritten from the package version, so they cannot drift — Mendix
+rejects semver ranges and refuses to package when two components disagree.
+Actions carrying the `@airfob-generated` marker are overwritten; anything you
+wrote by hand is skipped unless you pass `--force`.
+
+If `spec` changes between versions, the domain model needs the same change.
+`check-mendix` catches action and sidecar drift, but it cannot see your entities.

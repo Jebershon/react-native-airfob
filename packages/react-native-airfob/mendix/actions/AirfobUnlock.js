@@ -12,35 +12,63 @@ import Airfob from "react-native-airfob";
 // BEGIN EXTRA CODE
 // @airfob-generated — installed by "npx react-native-airfob install-mendix".
 // Re-run that command to update; local edits here will be overwritten.
+
+// Rewritten by the installer when --module is used. Keep on one line.
+const AIRFOB_MODULE = "Airfob";
+
+/**
+ * Nanoflows cannot call an import mapping — those activities are microflow-only —
+ * and cannot parse JSON, so the action builds the Mendix object itself.
+ * Every value must be non-null and already the right type for its attribute.
+ */
+function createAirfobObject(entityName, values) {
+    return new Promise((resolve, reject) => {
+        mx.data.create({
+            entity: AIRFOB_MODULE + "." + entityName,
+            callback: object => {
+                Object.keys(values).forEach(key => object.set(key, values[key]));
+                resolve(object);
+            },
+            error: reject
+        });
+    });
+}
+
+function airfobResult(ok, code, message, result) {
+    return createAirfobObject("AirfobResult", {
+        ok: ok,
+        code: code || "",
+        message: message || "",
+        result: result || ""
+    });
+}
+
 // END EXTRA CODE
 
 /**
  * Manual unlock — the fallback button, not the main path.
  *
  * Tap-and-go never reaches here: the SDK opens the door on proximity with the
- * app closed and no JavaScript running. Use this for lifts, gates, and taps
- * that did not land.
+ * app closed and no JavaScript running. Use this for lifts, gates, and taps that
+ * did not land.
  *
- * Studio Pro parameters:
- *   cardId  String  (optional — omit to use the only credential)
- * Returns: String (JSON) {"ok":true,"result":"opened"} where result is
- *   opened | noReader | denied. On failure, code is one of E_BT_OFF,
- *   E_PERMISSION, E_NO_CARD, E_NO_READER, E_LICENCE.
+ * Studio Pro
+ *   cardId   String  (optional — omit to use the only credential)
+ *   returns  Object (Airfob.AirfobResult)
+ *            result is opened | noReader | denied
+ *            code on failure is E_BT_OFF, E_PERMISSION, E_NO_CARD,
+ *            E_NO_READER or E_LICENCE
  *
  * @param {string} cardId
- * @returns {Promise.<string>}
+ * @returns {Promise.<MxObject>}
  */
 export async function AirfobUnlock(cardId) {
     // BEGIN USER CODE
     try {
-        const result = await Airfob.unlock(cardId || undefined);
-        return JSON.stringify({ ok: true, ...result });
+        const outcome = await Airfob.unlock(cardId || undefined);
+        return airfobResult(true, "", "", outcome.result);
     } catch (e) {
-        return JSON.stringify({
-            ok: false,
-            code: e.code || "E_SDK",
-            message: e.message || String(e)
-        });
+        return airfobResult(false, e.code || "E_SDK", e.message || String(e), "");
     }
     // END USER CODE
 }

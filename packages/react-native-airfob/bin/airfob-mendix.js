@@ -21,9 +21,10 @@ const fs = require("fs");
 const path = require("path");
 
 const PKG = require("../package.json");
+const { deriveSpec, format } = require("../mendix/derive-spec");
 const PKG_ROOT = path.resolve(__dirname, "..");
 const ACTIONS_DIR = path.join(PKG_ROOT, "mendix", "actions");
-const MAPPINGS_DIR = path.join(PKG_ROOT, "mendix", "mappings");
+const ENTITIES_DIR = path.join(PKG_ROOT, "mendix", "entities");
 
 const DEFAULT_MODULE = "Airfob";
 const MARKER = "@airfob-generated";
@@ -52,6 +53,15 @@ function actionNames() {
     .filter(f => f.endsWith(".js"))
     .map(f => f.replace(/\.js$/, ""))
     .sort();
+}
+
+// The actions build Mendix objects with mx.data.create, which needs a fully
+// qualified entity name. The module is therefore baked in at install time.
+const MODULE_LINE = /^const AIRFOB_MODULE = "[^"]*";$/m;
+
+function render(contents, moduleName) {
+  if (!MODULE_LINE.test(contents)) return contents;   // actions with no objects
+  return contents.replace(MODULE_LINE, `const AIRFOB_MODULE = "${moduleName}";`);
 }
 
 function sidecarFor(version) {
@@ -104,7 +114,7 @@ function install(target, options) {
     const sourceJs = path.join(ACTIONS_DIR, `${name}.js`);
     const targetJs = path.join(dest, `${name}.js`);
     const targetJson = path.join(dest, `${name}.json`);
-    const contents = fs.readFileSync(sourceJs, "utf8");
+    const contents = render(fs.readFileSync(sourceJs, "utf8"), moduleName);
 
     if (fs.existsSync(targetJs)) {
       const existing = fs.readFileSync(targetJs, "utf8");
@@ -131,13 +141,12 @@ function install(target, options) {
     written += 1;
   }
 
-  // The mapping samples are not part of the Mendix project structure — they are
-  // pasted into the Import Mapping wizard — so they land in a sibling folder
-  // rather than inside javascriptsource.
-  const mappingDest = path.join(root, "airfob-mappings");
-  fs.mkdirSync(mappingDest, { recursive: true });
-  for (const f of fs.readdirSync(MAPPINGS_DIR)) {
-    fs.copyFileSync(path.join(MAPPINGS_DIR, f), path.join(mappingDest, f));
+  // Entity shapes are reference material, not part of the Mendix project
+  // structure, so they land in a sibling folder rather than javascriptsource.
+  const entityDest = path.join(root, "airfob-entities");
+  fs.mkdirSync(entityDest, { recursive: true });
+  for (const f of fs.readdirSync(ENTITIES_DIR)) {
+    fs.copyFileSync(path.join(ENTITIES_DIR, f), path.join(entityDest, f));
   }
 
   console.log("");
@@ -147,10 +156,13 @@ function install(target, options) {
   console.log("");
   console.log(c.bold("next, in Studio Pro"));
   console.log(`  1. Refresh the project (F4) so it picks up ${moduleName}/actions`);
-  console.log("  2. For each file in airfob-mappings/: right-click the module ->");
-  console.log("     Add other -> Import Mapping -> Use a JSON structure -> paste");
-  console.log("     That generates the entities; you do not build them by hand.");
-  console.log("  3. Call AirfobBoot from the home page on-load nanoflow.");
+  console.log(`  2. Create the four non-persistable entities in ${moduleName}:`);
+  console.log("       npx react-native-airfob spec");
+  console.log("     Nanoflows cannot call an import mapping, so the actions build");
+  console.log("     these objects themselves and the attribute names must match.");
+  console.log("  3. Set each action return type (Object / List / Boolean) — see");
+  console.log("     the Studio Pro header comment in each action file.");
+  console.log("  4. Call AirfobBoot from the home page on-load nanoflow.");
   console.log("");
   console.log(c.dim("  Make It Native cannot load custom native code — the package"));
   console.log(c.dim("  falls back to its mock there and reports sdkReady: false."));
@@ -187,7 +199,8 @@ function check(target, options) {
       const found = JSON.parse(fs.readFileSync(targetJson, "utf8"));
       problems.push(`${name}.json pins ${found.nativeDependencies[PKG.name]}, expected ${PKG.version}`);
     }
-    if (fs.readFileSync(targetJs, "utf8") !== fs.readFileSync(path.join(ACTIONS_DIR, `${name}.js`), "utf8")) {
+    const expectedJs = render(fs.readFileSync(path.join(ACTIONS_DIR, `${name}.js`), "utf8"), moduleName);
+    if (fs.readFileSync(targetJs, "utf8") !== expectedJs) {
       problems.push(`${name}.js differs from the packaged source`);
     }
   }
@@ -211,8 +224,29 @@ function list() {
   console.log(c.bold("actions"));
   actionNames().forEach(n => console.log(`  ${n}`));
   console.log("");
-  console.log(c.bold("import-mapping samples"));
-  fs.readdirSync(MAPPINGS_DIR).forEach(f => console.log(`  ${f}`));
+  console.log(c.bold("entity definitions"));
+  fs.readdirSync(ENTITIES_DIR).forEach(f => console.log(`  ${f.replace(/.json$/, "")}`));
+}
+
+/* ------------------------------------------------------------------ spec -- */
+
+/**
+ * Prints the domain model the mapping samples imply. Use it as a checklist
+ * after running the Import Mapping wizard: the wizard builds the entities, this
+ * says what they should contain.
+ */
+function spec(options) {
+  const derived = deriveSpec();
+
+  if (options.json) {
+    console.log(JSON.stringify(derived, null, 2));
+  } else {
+    console.log(format(derived));
+  }
+
+  // A problem here means a sample is malformed, which would silently produce a
+  // wrong entity in Studio Pro. Fail loudly rather than printing a broken spec.
+  if (derived.problems.length) process.exit(1);
 }
 
 /* ------------------------------------------------------------------ main -- */
@@ -223,6 +257,7 @@ function usage() {
   npx ${PKG.name} install-mendix <project> [--module Airfob] [--force]
   npx ${PKG.name} check-mendix   <project> [--module Airfob]
   npx ${PKG.name} list-mendix
+  npx ${PKG.name} spec [--json]
 
   --module  Mendix module name (default: ${DEFAULT_MODULE})
   --force   overwrite action files not generated by this tool
@@ -248,6 +283,8 @@ function main(argv) {
       return check(positional[0], options);
     case "list-mendix":
       return list();
+    case "spec":
+      return spec({ json: args.includes("--json") });
     case "--help":
     case "-h":
     case undefined:

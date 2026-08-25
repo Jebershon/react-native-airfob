@@ -3,7 +3,7 @@
 Airfob (MOCA System) mobile access credentials for React Native and Mendix
 Native, packaged so more than one project can use them.
 
-**Status: P3a complete** (`react-native-airfob@0.3.0`). The whole chain runs on a
+**Status: P3b spec complete** (`react-native-airfob@0.4.0`). The whole chain runs on a
 mock SDK — no Airfob licence, no binaries, no dealer relationship. When the real
 SDK arrives, one class is swapped and nothing above it changes.
 
@@ -38,7 +38,8 @@ npx react-native-airfob install-mendix ./MyMendixApp
 ```
 
 See [mendix/README.md](packages/react-native-airfob/mendix/README.md) for the
-Studio Pro steps.
+design and [mendix/STUDIO-PRO.md](packages/react-native-airfob/mendix/STUDIO-PRO.md)
+for the step-by-step build sheet.
 
 ## Getting the example app running
 
@@ -71,7 +72,7 @@ npm test
 ```
 
 Zero dependencies — it copies the sources into a throwaway sandbox with a stub
-`react-native` and runs against the mock path. 44 checks across two suites. The first covers the fallback
+`react-native` and runs against the mock path. 49 checks across two suites. The first covers the fallback
 behaviour, the error codes, event emission, the bounded ring buffer, scenario
 forcing, bundle export, and the remediation contract — including the rule that a
 failing check must offer either an action or a remedy, never a dead end. The
@@ -198,8 +199,8 @@ native code, so that is the normal state for a Mendix developer building pages.
 |---|---|---|
 | **P1** ✅ | package, example app, mock, ring buffer, diagnostics | — |
 | **P2** ✅ | remediation actions, diagnostics screen, dev panel, raw state | — |
-| **P3a** ✅ | 7 Mendix JS actions, sidecars, mapping samples, install CLI | — |
-| P3b | Studio Pro: domain model, pages, nanoflows, .mpk | needs Studio Pro |
+| **P3a** ✅ | 7 Mendix JS actions, sidecars, install CLI | — |
+| **P3b** ◐ | domain-model generator + build sheet done; the .mpr work itself | needs Studio Pro |
 | P4 | support-bundle upload, backend entity, admin view | — |
 | P5 | `RealAirfobSdk` (Android, then iOS) | **SDK licence** |
 | P6 | telemetry: success rate, time-to-unlock, per-device model | P5 |
