@@ -199,8 +199,8 @@ await check("REMEDIATION ids are exported and unique", () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
-await check("version reports 0.2.0", () => {
-  assert.equal(Airfob.version, "0.2.0");
+await check("version reports 0.3.0", () => {
+  assert.equal(Airfob.version, "0.3.0");
 });
 
 console.log(`\n${pass} checks passed`);

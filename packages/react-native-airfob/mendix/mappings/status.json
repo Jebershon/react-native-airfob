@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "code": "",
+  "message": "",
+  "sdkReady": true,
+  "mock": false,
+  "registered": true,
+  "bluetooth": "on",
+  "permissions": "granted",
+  "licence": "valid",
+  "cardCount": 1,
+  "version": "0.2.0"
+}

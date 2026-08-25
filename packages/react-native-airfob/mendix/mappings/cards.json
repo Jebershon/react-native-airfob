@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "code": "",
+  "message": "",
+  "cards": [
+    {
+      "id": "card-8f21c3",
+      "name": "Head Office",
+      "siteName": "HQ",
+      "status": "active",
+      "accessLevels": "All doors"
+    }
+  ]
+}

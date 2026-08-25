@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "code": "",
+  "message": "",
+  "summary": "fail",
+  "devicePlatform": "android",
+  "deviceModel": "Samsung SM-G991B",
+  "deviceOsVersion": "14 (API 34)",
+  "checks": [
+    {
+      "id": "bluetooth",
+      "label": "Bluetooth enabled",
+      "state": "fail",
+      "detail": "off",
+      "action": "openBluetoothSettings",
+      "actionLabel": "Turn on Bluetooth",
+      "remedy": ""
+    },
+    {
+      "id": "licence",
+      "label": "SDK licence valid",
+      "state": "pass",
+      "detail": "valid",
+      "action": "",
+      "actionLabel": "",
+      "remedy": ""
+    }
+  ]
+}

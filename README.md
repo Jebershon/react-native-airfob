@@ -3,7 +3,7 @@
 Airfob (MOCA System) mobile access credentials for React Native and Mendix
 Native, packaged so more than one project can use them.
 
-**Status: P2 complete** (`react-native-airfob@0.2.0`). The whole chain runs on a
+**Status: P3a complete** (`react-native-airfob@0.3.0`). The whole chain runs on a
 mock SDK — no Airfob licence, no binaries, no dealer relationship. When the real
 SDK arrives, one class is swapped and nothing above it changes.
 
@@ -27,8 +27,18 @@ AirfobCore → AirfobSdk                     ← the seam
 |---|---|
 | `packages/react-native-airfob/` | the npm package — native modules, JS API, mock, log |
 | `example/` | bare React Native app for fast debugging |
-| `scripts/sync-mendix-versions.js` | keeps Mendix sidecar versions pinned |
-| `mendix-module/` | *(P3)* JS actions, entities, import mappings |
+| `scripts/sync-mendix-versions.js` | keeps the packaged sidecars pinned |
+
+The Mendix half ships **inside** the package at `packages/react-native-airfob/mendix/` —
+seven JavaScript actions, their sidecars, and the import-mapping samples — installed
+into any Mendix project with one command:
+
+```bash
+npx react-native-airfob install-mendix ./MyMendixApp
+```
+
+See [mendix/README.md](packages/react-native-airfob/mendix/README.md) for the
+Studio Pro steps.
 
 ## Getting the example app running
 
@@ -61,11 +71,13 @@ npm test
 ```
 
 Zero dependencies — it copies the sources into a throwaway sandbox with a stub
-`react-native` and runs against the mock path. 26 checks covering the fallback
+`react-native` and runs against the mock path. 44 checks across two suites. The first covers the fallback
 behaviour, the error codes, event emission, the bounded ring buffer, scenario
 forcing, bundle export, and the remediation contract — including the rule that a
-failing check must offer either an action or a remedy, never a dead end. Runs on
-a clean checkout with nothing installed.
+failing check must offer either an action or a remedy, never a dead end. The
+second drives the install CLI against throwaway Mendix projects — version
+pinning, drift detection, and the rule that it never clobbers a hand-authored
+action. Runs on a clean checkout with nothing installed.
 
 ## Using it
 
@@ -186,7 +198,8 @@ native code, so that is the normal state for a Mendix developer building pages.
 |---|---|---|
 | **P1** ✅ | package, example app, mock, ring buffer, diagnostics | — |
 | **P2** ✅ | remediation actions, diagnostics screen, dev panel, raw state | — |
-| P3 | Mendix module: 5 JS actions, sidecars, entities, mappings | — |
+| **P3a** ✅ | 7 Mendix JS actions, sidecars, mapping samples, install CLI | — |
+| P3b | Studio Pro: domain model, pages, nanoflows, .mpk | needs Studio Pro |
 | P4 | support-bundle upload, backend entity, admin view | — |
 | P5 | `RealAirfobSdk` (Android, then iOS) | **SDK licence** |
 | P6 | telemetry: success rate, time-to-unlock, per-device model | P5 |

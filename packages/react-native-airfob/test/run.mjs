@@ -33,12 +33,15 @@ try {
   );
   fs.cpSync(path.join(here, "smoke.mjs"), path.join(sandbox, "smoke.mjs"));
 
-  const result = spawnSync(process.execPath, ["smoke.mjs"], {
-    cwd: sandbox,
-    stdio: "inherit"
-  });
+  // smoke.mjs runs inside the sandbox because the package sources are ESM but
+  // the package itself is not type:module. cli.mjs needs no sandbox — it drives
+  // the real bin script against throwaway Mendix projects.
+  const smoke = spawnSync(process.execPath, ["smoke.mjs"], { cwd: sandbox, stdio: "inherit" });
+  if ((smoke.status ?? 1) !== 0) process.exit(smoke.status ?? 1);
 
-  process.exit(result.status ?? 1);
+  console.log("");
+  const cli = spawnSync(process.execPath, [path.join(here, "cli.mjs")], { cwd: pkgRoot, stdio: "inherit" });
+  process.exit(cli.status ?? 1);
 } finally {
   fs.rmSync(sandbox, { recursive: true, force: true });
 }

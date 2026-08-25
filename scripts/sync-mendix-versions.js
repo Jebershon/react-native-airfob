@@ -1,86 +1,79 @@
 #!/usr/bin/env node
 /**
- * Keeps every Mendix native-dependency sidecar pinned to the package version.
+ * Keeps the packaged Mendix sidecars pinned to the package version.
  *
- * Mendix rejects semver ranges — "Note that semver is not supported; an exact
- * version must be specified" — and Studio Pro refuses to package the app when two
- * components declare different versions of the same dependency. With one sidecar
- * per JavaScript action that is a build break waiting to happen, so the version
- * gets written from a single source of truth instead of by hand.
+ * Mendix rejects semver ranges — "semver is not supported; an exact version must
+ * be specified" — and Studio Pro refuses to package an app when two components
+ * declare different versions of the same native dependency. With one sidecar per
+ * JavaScript action that is a build break waiting to happen, so the version is
+ * written from a single source of truth rather than by hand.
  *
- *   node scripts/sync-mendix-versions.js           # rewrite sidecars
- *   node scripts/sync-mendix-versions.js --check   # fail if any drifted (CI)
+ *   npm run sync:sidecars          # rewrite the packaged action sidecars
+ *   npm run sync:sidecars:check    # fail if any drifted (CI)
+ *
+ * This covers the sidecars *inside the package*. To check the copies installed
+ * into a Mendix project, use the CLI instead:
+ *
+ *   npx react-native-airfob check-mendix ./MyMendixApp
  */
 const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
-const PACKAGE_JSON = path.join(ROOT, "packages", "react-native-airfob", "package.json");
-const SIDECAR_ROOTS = [path.join(ROOT, "mendix-module")];
+const PACKAGE_DIR = path.join(ROOT, "packages", "react-native-airfob");
+const PACKAGE_JSON = path.join(PACKAGE_DIR, "package.json");
+const ACTIONS_DIR = path.join(PACKAGE_DIR, "mendix", "actions");
 
 const checkOnly = process.argv.includes("--check");
-
-/** @returns {string[]} every .json next to a .js action file */
-function findSidecars(dir) {
-  if (!fs.existsSync(dir)) return [];
-
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return findSidecars(full);
-    if (!entry.name.endsWith(".json")) return [];
-
-    // Only touch files that actually declare native dependencies. A stray
-    // package.json or import mapping must be left alone.
-    try {
-      const parsed = JSON.parse(fs.readFileSync(full, "utf8"));
-      return parsed && parsed.nativeDependencies ? [full] : [];
-    } catch (e) {
-      console.warn(`  skipped (not valid JSON): ${path.relative(ROOT, full)}`);
-      return [];
-    }
-  });
-}
 
 function main() {
   const { name, version } = JSON.parse(fs.readFileSync(PACKAGE_JSON, "utf8"));
   console.log(`${name}@${version}`);
 
-  const sidecars = SIDECAR_ROOTS.flatMap(findSidecars);
-
-  if (sidecars.length === 0) {
-    console.log("No native-dependency sidecars found yet — nothing to sync.");
-    console.log("(Expected: they arrive with the Mendix module in P3.)");
-    return;
+  if (!fs.existsSync(ACTIONS_DIR)) {
+    console.error(`No actions directory at ${path.relative(ROOT, ACTIONS_DIR)}`);
+    process.exit(1);
   }
 
+  const actions = fs
+    .readdirSync(ACTIONS_DIR)
+    .filter(f => f.endsWith(".js"))
+    .sort();
+
+  if (actions.length === 0) {
+    console.error("No JavaScript actions found — nothing to pin.");
+    process.exit(1);
+  }
+
+  const expected = JSON.stringify({ nativeDependencies: { [name]: version } }, null, 4) + "\n";
   const drifted = [];
 
-  for (const file of sidecars) {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-    const current = parsed.nativeDependencies[name];
+  for (const action of actions) {
+    const file = path.join(ACTIONS_DIR, action.replace(/\.js$/, ".json"));
     const relative = path.relative(ROOT, file);
+    const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
 
-    if (current === version) {
+    if (current === expected) {
       console.log(`  ok      ${relative}`);
       continue;
     }
 
-    drifted.push({ relative, current });
+    const found = current
+      ? JSON.parse(current).nativeDependencies?.[name] ?? "malformed"
+      : "missing";
+    drifted.push({ relative, found });
 
     if (checkOnly) {
-      console.log(`  DRIFT   ${relative}  ${current} != ${version}`);
+      console.log(`  DRIFT   ${relative}  ${found} != ${version}`);
       continue;
     }
 
-    parsed.nativeDependencies[name] = version;
-    fs.writeFileSync(file, JSON.stringify(parsed, null, 4) + "\n");
-    console.log(`  updated ${relative}  ${current} -> ${version}`);
+    fs.writeFileSync(file, expected);
+    console.log(`  updated ${relative}  ${found} -> ${version}`);
   }
 
   if (checkOnly && drifted.length > 0) {
-    console.error(
-      `\n${drifted.length} sidecar(s) out of sync. Run: npm run sync-versions`
-    );
+    console.error(`\n${drifted.length} sidecar(s) out of sync. Run: npm run sync:sidecars`);
     process.exit(1);
   }
 }

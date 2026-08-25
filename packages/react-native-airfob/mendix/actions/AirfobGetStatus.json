@@ -1,0 +1,5 @@
+{
+    "nativeDependencies": {
+        "react-native-airfob": "0.3.0"
+    }
+}
