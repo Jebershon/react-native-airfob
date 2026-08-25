@@ -13,7 +13,8 @@
     "index.d.ts",
     "react-native-airfob.podspec",
     "README.md",
-    "!android/verify/.verify-cache"
+    "!android/verify/.verify-cache",
+    "!ios/verify/.verify-build"
   ],
   "keywords": [
     "react-native",
@@ -44,7 +45,8 @@
     "test": "node test/run.mjs",
     "verify:android": "bash android/verify/compile-check.sh",
     "sync:sidecars": "node ../../scripts/sync-mendix-versions.js",
-    "sync:sidecars:check": "node ../../scripts/sync-mendix-versions.js --check"
+    "sync:sidecars:check": "node ../../scripts/sync-mendix-versions.js --check",
+    "verify:ios": "bash ios/verify/typecheck.sh"
   },
   "bin": {
     "react-native-airfob": "bin/airfob-mendix.js",

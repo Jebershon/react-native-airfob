@@ -31,3 +31,6 @@ dist/
 **/libs/*.aar
 **/Frameworks/*.framework
 **/*.xcframework
+
+# iOS type-check build output
+ios/verify/.verify-build/
