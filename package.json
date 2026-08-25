@@ -1,8 +1,8 @@
 {
-  "name": "airfob-mobile",
+  "name": "react-native-airfob-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Airfob mobile access for Mendix Native — npm package, example app, Mendix module",
+  "description": "Airfob mobile access credentials for React Native and Mendix Native — package, example app, and Mendix module",
   "workspaces": [
     "packages/*",
     "example"

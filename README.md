@@ -1,7 +1,7 @@
-# airfob-mobile
+# react-native-airfob
 
-Airfob (MOCA System) mobile access credentials for Mendix Native, packaged so
-more than one project can use them.
+Airfob (MOCA System) mobile access credentials for React Native and Mendix
+Native, packaged so more than one project can use them.
 
 **Status: P2 complete** (`react-native-airfob@0.2.0`). The whole chain runs on a
 mock SDK — no Airfob licence, no binaries, no dealer relationship. When the real
