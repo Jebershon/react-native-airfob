@@ -1,5 +1,8 @@
 # react-native-airfob
 
+> New here? Read **[HANDOVER.md](HANDOVER.md)** first — status, what is left,
+> and what we need from the client, in two minutes.
+
 Airfob (MOCA System) mobile access credentials for React Native and Mendix
 Native, packaged so more than one project can use them.
 
