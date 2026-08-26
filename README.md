@@ -6,9 +6,10 @@
 Airfob (MOCA System) mobile access credentials for React Native and Mendix
 Native, packaged so more than one project can use them.
 
-**Status: P4 complete** (`react-native-airfob@0.5.0`). The whole chain runs on a
-mock SDK — no Airfob licence, no binaries, no dealer relationship. When the real
-SDK arrives, one class is swapped and nothing above it changes.
+**Status: P1–P4 complete, P5 scaffolded** (`react-native-airfob@0.5.0`). The whole
+chain runs on a mock SDK — no Airfob licence, no binaries, no dealer relationship.
+Drop the licensed AAR or xcframework in and the build switches adapters on its
+own; nothing above the seam changes.
 
 ```
 example app / Mendix JS action
@@ -33,7 +34,7 @@ AirfobCore → AirfobSdk                     ← the seam
 | `scripts/sync-mendix-versions.js` | keeps the packaged sidecars pinned |
 
 The Mendix half ships **inside** the package at `packages/react-native-airfob/mendix/` —
-seven JavaScript actions, their sidecars, and the import-mapping samples — installed
+eight JavaScript actions, their sidecars, and the entity definitions — installed
 into any Mendix project with one command:
 
 ```bash
