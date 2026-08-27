@@ -1,6 +1,6 @@
 # react-native-airfob
 
-> New here? Read **[HANDOVER.md](HANDOVER.md)** first — status, what is left,
+> New here? Read **[HANDOVER.md](docs/HANDOVER.md)** first — status, what is left,
 > and what we need from the client, in two minutes.
 
 Airfob (MOCA System) mobile access credentials for React Native and Mendix
@@ -41,8 +41,8 @@ into any Mendix project with one command:
 npx react-native-airfob install-mendix ./MyMendixApp
 ```
 
-See [mendix/README.md](packages/react-native-airfob/mendix/README.md) for the
-design and [mendix/STUDIO-PRO.md](packages/react-native-airfob/mendix/STUDIO-PRO.md)
+See [docs/MENDIX.md](docs/MENDIX.md) for the
+design and [docs/STUDIO-PRO.md](docs/STUDIO-PRO.md)
 for the step-by-step build sheet.
 
 ## Getting the example app running
@@ -243,4 +243,4 @@ What the public changelog already tells us to expect:
    package is a placeholder until this is settled.
 2. ~~**Log retention**~~ — **decided in P4.** Seven days on device by default,
    configurable via `AirfobBoot`. Your backend window is still yours to choose;
-   see [STUDIO-PRO.md](packages/react-native-airfob/mendix/STUDIO-PRO.md) step 9.
+   see [docs/STUDIO-PRO.md](docs/STUDIO-PRO.md) step 9.

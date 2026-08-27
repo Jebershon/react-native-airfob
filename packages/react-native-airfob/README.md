@@ -47,9 +47,22 @@ land. It is not the main path.
 | `remediate(actionId)` | opens the OS settings screen for a failing check |
 | `requestPermissions()` | Android runtime permissions |
 | `getRawState()` / `resetRssi()` | support tools |
-| `log.*` | `get` `setLevel` `clear` `subscribe` `write` `export` |
+| `log.*` | `get` `setLevel` `setRetentionDays` `clear` `subscribe` `write` `export` |
 | `on(handler)` | `status` · `readerDetected` · `unlockResult` · `error` |
 | `setScenario(name)` / `listScenarios()` | **mock only** — force a broken state |
+
+## Mendix
+
+The Mendix integration ships inside this package under `mendix/` — eight
+JavaScript actions, their native-dependency sidecars, and the entity definitions.
+
+```bash
+npx react-native-airfob install-mendix ./MyMendixApp
+npx react-native-airfob spec                       # the domain model to build
+```
+
+Design notes and the Studio Pro build sheet live in the repository at
+`docs/MENDIX.md` and `docs/STUDIO-PRO.md`.
 
 ## It degrades instead of throwing
 
@@ -98,8 +111,9 @@ declaration is approved.
 npm test
 ```
 
-Zero dependencies. 26 checks against the mock path, sandboxed with a stub
-`react-native`. Runs on a clean checkout with nothing installed.
+Zero dependencies. 60 checks — the mock path sandboxed with a stub
+`react-native`, plus the install CLI driven against throwaway Mendix projects.
+Runs on a clean checkout with nothing installed.
 
 ## Publishing
 

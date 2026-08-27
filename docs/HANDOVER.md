@@ -1,6 +1,6 @@
 # Handover
 
-Read this first. [README.md](README.md) has the detail.
+Read this first. [README.md](../README.md) has the detail.
 
 ## What this is
 
@@ -46,7 +46,7 @@ npx react-native-airfob spec
 
 | | Effort | Blocked? |
 |---|---|---|
-| **P3b** — build the pages/nanoflows in Studio Pro | ~1 day | no — follow [STUDIO-PRO.md](packages/react-native-airfob/mendix/STUDIO-PRO.md) |
+| **P3b** — build the pages/nanoflows in Studio Pro | ~1 day | no — follow [STUDIO-PRO.md](STUDIO-PRO.md) |
 | **Example app projects** (`example/ios`, `example/android`) | ~½ day | no |
 | **P5** — the real SDK calls | ~1–2 weeks | **yes — needs the licence** |
 | Repo → private, branch protection | minutes | no |
@@ -84,7 +84,7 @@ Drop the AAR in `android/libs/` or the `.xcframework` in `ios/Frameworks/`. The
 build detects it and switches adapters — no source edit, no flag. Then fill in
 the `TODO(P5)` methods in `RealAirfobSdk.kt` / `.swift`; they're the only files
 allowed to import MOCA symbols. Contract is in
-[docs/P5-INTEGRATION.md](docs/P5-INTEGRATION.md).
+[P5-INTEGRATION.md](P5-INTEGRATION.md).
 
 ## Five things that will bite you
 
